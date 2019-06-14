@@ -1,0 +1,15 @@
+#notification {
+    width: 100%;
+    background: black;
+    color: grey;
+    font-family: monospace;
+    padding: 2px
+}
+
+#notification .success {
+    color: darkseagreen;
+}
+
+#notification .error {
+    color: indianred;
+}

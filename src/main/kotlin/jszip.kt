@@ -52,13 +52,6 @@ external interface JSZipObject {
     var comment: String
     var options: JSZipObjectOptions
     fun async(type: String /* "string" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "text" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "base64" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "binarystring" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "uint8array" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "arraybuffer" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "blob" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
-    fun async(type: String /* "nodebuffer" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
     fun asText()
     fun asBinary()
     fun asArrayBuffer()

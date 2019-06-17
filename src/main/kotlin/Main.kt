@@ -2,9 +2,13 @@ import org.w3c.dom.HTMLAnchorElement
 import org.w3c.dom.HTMLInputElement
 import org.w3c.dom.events.Event
 import org.w3c.dom.url.URL
+import org.w3c.fetch.RequestInit
+import org.w3c.fetch.Response
 import org.w3c.files.Blob
 import kotlin.browser.document
+import kotlin.browser.window
 import kotlin.dom.createElement
+import kotlin.js.Promise
 
 /**
  * Encapsulates a notification section where messages can be added */
@@ -30,6 +34,13 @@ class Notification(id: String) {
   fun error(message: String) {
     addTextLine(message, "error")
   }
+}
+
+/**
+ * Used in promise rejection when detecting error (status code != 200)
+ */
+open class HTTPException(val status: Short, val errorMessage: String) : Exception("[$status] $errorMessage") {
+  constructor(response: Response) : this(response.status, response.statusText)
 }
 
 /**
@@ -99,10 +110,36 @@ fun downloadFile(filename: String, blob: Blob) {
     href = URL.createObjectURL(blob)
     target = "_blank"
     download = filename
-  } as HTMLAnchorElement)//.click()
+  } as HTMLAnchorElement).click()
   println("downloading... ${URL.createObjectURL(blob)}")
 
 }
+
+/**
+ * https://api.github.com/repos/pongasoft/jamba/releases/latest returns json
+ */
+fun loadJambaZip(onResult: (version: String, zip: Blob) -> Unit,
+                 onFailure: (error: String) -> Unit) {
+  // async fetch of the blob
+  val zipURL = "/static/blank-plugin.zip"
+  println("fetching  ${zipURL}")
+  window.fetch(zipURL,
+               RequestInit(method="GET"))
+      .then { response ->
+        if (response.status == 200.toShort()) {
+          response.blob()
+        } else {
+          Promise.reject(HTTPException(response))
+        }
+      }
+      .then { blob: Blob ->
+        onResult("v2.1.2", blob)
+      }
+      .catch {
+        onFailure(it.message ?: "Unknown error")
+      }
+}
+
 
 fun init() {
   val elements = arrayOf("name",
@@ -122,6 +159,21 @@ fun init() {
 
   val notification = Notification("notification")
 
+  var cache : BlankPluginCache? = null
+
+  loadJambaZip(
+      onResult = { version, blob ->
+        buildCache(version, blob).then {
+          cache = it
+          notification.success("Loaded Jamba Blank Plugin version $version - ${cache?.fileCount} files.")
+        }
+        document.getElementById("jamba_version")?.textContent = "[$version]"
+      },
+      onFailure = {
+        notification.error("Could not fetch blank plugin - $it. Try refreshing the page...")
+      }
+  )
+
   // defines what happens when the plugin name is entered/changed
   elements["name"]?.onChange {
     elements["audio_unit_manufacturer_code"]?.setComputedValue(computeAudioUnitManufacturerCode(value))
@@ -140,16 +192,12 @@ fun init() {
 
   // handle submitting the form
   elements["submit"]?.addListener("click") {
-    val zip = JSZip()
-    zip.file("Hello.txt", "Hello World\n")
-    zip.file("Hello2.txt", "Hello World 2\n")
-    val options = object : JSZipGeneratorOptions {}.apply { type = "blob" }
-    zip.generateAsync(options)
-        .then {
-          it as Blob
-          println(it)
-          downloadFile("test-jszip.zip", it)
-        }
+    if(cache == null)
+      notification.error("No blank plugin found... try refreshing the page")
+    else
+      cache?.generatePlugin(form!!)?.then { (filename, blob) ->
+        downloadFile(filename, blob)
+      }
   }
 
   notification.progress("Fill out the name at least and click \"Generate\"")

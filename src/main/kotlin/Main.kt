@@ -23,7 +23,7 @@ class Notification(id: String) {
     element.appendChild(div)
   }
 
-  fun progress(message: String) {
+  fun info(message: String) {
     addTextLine(message)
   }
 
@@ -110,34 +110,62 @@ fun downloadFile(filename: String, blob: Blob) {
     href = URL.createObjectURL(blob)
     target = "_blank"
     download = filename
-  } as HTMLAnchorElement).click()
+  } as HTMLAnchorElement)//.click()
   println("downloading... ${URL.createObjectURL(blob)}")
-
 }
+
+typealias ErrorHandler = (error: Throwable) -> Unit
+
+/**
+ * Forces flattening the promise because Kotlin doesn't do it automatically
+ */
+inline fun <T> Promise<Promise<T>>.flatten() : Promise<T> {
+  return this.then { it }
+}
+
+/**
+ * Fetches the URL and processes the response (only when successful) via [onFulfilled]. If not successful or
+ * rejection, then an exception is thrown (should be handled via [Promise.catch])
+ */
+fun <T> fetchURL(url: String,
+                 method: String = "GET",
+                 onFulfilled: (Response) -> Promise<T>) : Promise<T> {
+
+  return window.fetch(url,
+                       RequestInit(method = method))
+      .then(
+          onFulfilled = { response ->
+            if (response.status == 200.toShort()) {
+              onFulfilled(response)
+            } else {
+              Promise.reject(HTTPException(response))
+            }
+          }
+      ).flatten()
+}
+
+/**
+ * Fetches the url as json content. Note the use of `dynamic` since json is "free" form
+ */
+fun fetchJson(url: String, method: String = "GET") : Promise<dynamic> { return fetchURL(url, method) {it.json()} }
+
+/**
+ * Fetches the url as a blob
+ */
+fun fetchBlob(url: String, method: String = "GET") : Promise<Blob> { return fetchURL(url, method) {it.blob()} }
 
 /**
  * https://api.github.com/repos/pongasoft/jamba/releases/latest returns json
  */
-fun loadJambaZip(onResult: (version: String, zip: Blob) -> Unit,
-                 onFailure: (error: String) -> Unit) {
+fun loadJambaZip() : Promise<Pair<String, Blob>> {
   // async fetch of the blob
   val zipURL = "/static/blank-plugin.zip"
+  val jambaReleasesGithubAPI = "https://api.github.com/repos/pongasoft/jamba/releases/latest"
   println("fetching  ${zipURL}")
-  window.fetch(zipURL,
-               RequestInit(method="GET"))
-      .then { response ->
-        if (response.status == 200.toShort()) {
-          response.blob()
-        } else {
-          Promise.reject(HTTPException(response))
-        }
-      }
-      .then { blob: Blob ->
-        onResult("v2.1.2", blob)
-      }
-      .catch {
-        onFailure(it.message ?: "Unknown error")
-      }
+//  fetchJson(jambaReleasesGithubAPI).then { json : dynamic ->
+//    println("detected version=${json.tag_name}")
+//  }
+  return fetchBlob(zipURL).then { blob -> Pair("v2.1.2", blob) }
 }
 
 
@@ -159,20 +187,33 @@ fun init() {
 
   val notification = Notification("notification")
 
-  var cache : BlankPluginCache? = null
+  notification.info("Loading latest Jamba Blank Plugin...")
 
-  loadJambaZip(
-      onResult = { version, blob ->
-        buildCache(version, blob).then {
-          cache = it
-          notification.success("Loaded Jamba Blank Plugin version $version - ${cache?.fileCount} files.")
-        }
+  loadJambaZip()
+      // zip loaded => build the cache
+      .then { (version, zip) ->
         document.getElementById("jamba_version")?.textContent = "[$version]"
-      },
-      onFailure = {
-        notification.error("Could not fetch blank plugin - $it. Try refreshing the page...")
+        buildCache(version, zip)
       }
-  )
+      // cache built => install listener
+      .then { cache ->
+        notification.info("Loaded Jamba Blank Plugin version ${cache.jambaGitHash} - ${cache.fileCount} files.")
+
+        // handle submitting the form
+        elements["submit"]?.addListener("click") {
+          cache.generatePlugin(form!!).then { (filename, blob) ->
+            downloadFile(filename, blob)
+          }
+        }
+      }
+      // in case of error => report error and install different listener
+      .catch {
+        notification.error("Could not fetch blank plugin - ${it.message}. Try refreshing the page...")
+
+        elements["submit"]?.addListener("click") {
+          notification.error("Could not fetch blank plugin. Try refreshing the page...")
+        }
+      }
 
   // defines what happens when the plugin name is entered/changed
   elements["name"]?.onChange {
@@ -190,17 +231,6 @@ fun init() {
     elements["company_email"]?.setComputedValue("support@$value.com")
   }
 
-  // handle submitting the form
-  elements["submit"]?.addListener("click") {
-    if(cache == null)
-      notification.error("No blank plugin found... try refreshing the page")
-    else
-      cache?.generatePlugin(form!!)?.then { (filename, blob) ->
-        downloadFile(filename, blob)
-      }
-  }
-
-  notification.progress("Fill out the name at least and click \"Generate\"")
 
 }
 

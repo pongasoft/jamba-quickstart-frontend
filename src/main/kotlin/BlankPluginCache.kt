@@ -36,10 +36,7 @@ fun buildCache(version: String, blob: Blob): Promise<BlankPluginCache> {
     Promise.all(promises.toTypedArray()).then { array ->
       BlankPluginCache(version, array.toMap(), UUIDv4)
     }
-  }.then { cache ->
-    println("loaded cache... ${cache.fileCount}")
-    cache
-  }
+  }.flatten()
 }
 
 /**

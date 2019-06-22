@@ -13,12 +13,7 @@ fun buildCache(version: String, blob: Blob): Promise<BlankPluginCache> {
 
   val zip = JSZip()
 
-
-  println("start to build cache")
-
   return zip.loadAsync(blob).then {
-
-    println("zip loaded")
 
     val promises = mutableListOf<Promise<Pair<String, String>>>()
 
@@ -136,8 +131,6 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
     setBooleanToken("enable_vst2")
     setBooleanToken("enable_audio_unit")
 
-    println(newTokens)
-
     val t = newTokens.mapKeys { (k,_) -> "[-$k-]" }
     files.forEach { (name, content) ->
       val processedName = name.replace("__Plugin__", pluginName)
@@ -152,8 +145,6 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
   fun generatePlugin(form: HTMLFormElement) : Promise<Pair<String, Blob>> {
     val data = FormData(form)
     val params = data.keys().asSequence().associateBy({it}, { e -> data.get(e).toString() })
-
-    println(params)
 
     val name = params["name"]
 

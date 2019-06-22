@@ -2,6 +2,7 @@ import org.w3c.dom.HTMLAnchorElement
 import org.w3c.dom.HTMLInputElement
 import org.w3c.dom.events.Event
 import org.w3c.dom.url.URL
+import org.w3c.dom.url.URLSearchParams
 import org.w3c.fetch.RequestInit
 import org.w3c.fetch.Response
 import org.w3c.files.Blob
@@ -17,7 +18,7 @@ class Notification(id: String) {
 
   private fun addTextLine(message: String, status: String? = null) {
     val div = document.createElement("div")
-    if(status != null)
+    if (status != null)
       div.classList.add(status)
     div.appendChild(document.createTextNode(message))
     element.appendChild(div)
@@ -60,8 +61,8 @@ fun HTMLInputElement.onChange(block: HTMLInputElement.(event: Event) -> Unit) {
  * recomputed it can be updated but ONLY in the event the user has not manually modified it
  */
 fun HTMLInputElement.setComputedValue(computedValue: String) {
-  val dynElt : dynamic = this
-  if(value.isEmpty() || value == dynElt.__computedValue)
+  val dynElt: dynamic = this
+  if (value.isEmpty() || value == dynElt.__computedValue)
     value = computedValue
   dynElt.__computedValue = computedValue
 }
@@ -110,16 +111,13 @@ fun downloadFile(filename: String, blob: Blob) {
     href = URL.createObjectURL(blob)
     target = "_blank"
     download = filename
-  } as HTMLAnchorElement)//.click()
-  println("downloading... ${URL.createObjectURL(blob)}")
+  } as HTMLAnchorElement).click()
 }
-
-typealias ErrorHandler = (error: Throwable) -> Unit
 
 /**
  * Forces flattening the promise because Kotlin doesn't do it automatically
  */
-inline fun <T> Promise<Promise<T>>.flatten() : Promise<T> {
+inline fun <T> Promise<Promise<T>>.flatten(): Promise<T> {
   return this.then { it }
 }
 
@@ -129,13 +127,13 @@ inline fun <T> Promise<Promise<T>>.flatten() : Promise<T> {
  */
 fun <T> fetchURL(url: String,
                  method: String = "GET",
-                 onFulfilled: (Response) -> Promise<T>) : Promise<T> {
+                 onFulfilled: (Response) -> Promise<T>): Promise<T> {
 
   return window.fetch(url,
-                       RequestInit(method = method))
+                      RequestInit(method = method))
       .then(
           onFulfilled = { response ->
-            if (response.status == 200.toShort()) {
+            if (response.ok && response.status == 200.toShort()) {
               onFulfilled(response)
             } else {
               Promise.reject(HTTPException(response))
@@ -147,28 +145,87 @@ fun <T> fetchURL(url: String,
 /**
  * Fetches the url as json content. Note the use of `dynamic` since json is "free" form
  */
-fun fetchJson(url: String, method: String = "GET") : Promise<dynamic> { return fetchURL(url, method) {it.json()} }
+fun fetchJson(url: String, method: String = "GET"): Promise<dynamic> {
+  return fetchURL(url, method) { it.json() }
+}
 
 /**
  * Fetches the url as a blob
  */
-fun fetchBlob(url: String, method: String = "GET") : Promise<Blob> { return fetchURL(url, method) {it.blob()} }
-
-/**
- * https://api.github.com/repos/pongasoft/jamba/releases/latest returns json
- */
-fun loadJambaZip() : Promise<Pair<String, Blob>> {
-  // async fetch of the blob
-  val zipURL = "/static/blank-plugin.zip"
-  val jambaReleasesGithubAPI = "https://api.github.com/repos/pongasoft/jamba/releases/latest"
-  println("fetching  ${zipURL}")
-//  fetchJson(jambaReleasesGithubAPI).then { json : dynamic ->
-//    println("detected version=${json.tag_name}")
-//  }
-  return fetchBlob(zipURL).then { blob -> Pair("v2.1.2", blob) }
+fun fetchBlob(url: String, method: String = "GET"): Promise<Blob> {
+  return fetchURL(url, method) { it.blob() }
 }
 
+/**
+ * Definition of the parts of the github rest api used by this code
+ */
+external class GithubReleaseAsset {
+  val name: String?
+  val browser_download_url: String?
+}
 
+external class GithubRelease {
+  val tag_name: String?
+  val assets: Array<GithubReleaseAsset>?
+}
+
+/**
+ * Looks for an asset with a name starting with `jamba-blank-plugin`. It will be of the
+ * form `jamba-blank-plugin-vX.Y.Z.zip`)
+ */
+fun GithubRelease.findJambaBlankPlugin() = assets?.find { it.name?.startsWith("jamba-blank-plugin") ?: false }
+
+/**
+ * Finds the latest (or more recent) release which contains the blank plugin zip file
+ */
+fun findLatestRelease(releases: Array<GithubRelease>): GithubRelease? {
+  return releases.find { release ->
+    release.tag_name != null && release.findJambaBlankPlugin() != null
+  }
+}
+
+/**
+ * Loads a local copy (used to bypass github)
+ */
+fun loadLocalJambaZip(version: String) : Promise<Pair<String, Blob>> {
+  val assetPath = "/static/assets/jamba-blank-plugin-$version.zip"
+  println("Fetching Jamba Blank Plugin locally $assetPath")
+  return fetchBlob(assetPath).then { blob -> Pair(version, blob) }
+}
+
+/**
+ * https://api.github.com/repos/pongasoft/jamba/releases returns json
+ */
+fun loadJambaZip(): Promise<Pair<String, Blob>> {
+  // async fetch of the blob
+
+  val jambaReleasesGithubAPI = "https://api.github.com/repos/pongasoft/jamba/releases"
+  return fetchJson(jambaReleasesGithubAPI).then { releases: Array<GithubRelease> ->
+    val latestRelease = findLatestRelease(releases)
+    if (latestRelease == null) {
+      Promise.reject(Exception("Could not determine latest jamba release"))
+    } else {
+      val version = latestRelease.tag_name!! // not null by definition of findLatestRelease
+      val asset = latestRelease.findJambaBlankPlugin()!! // not null by definition of findLatestRelease
+      var downloadURL = asset.browser_download_url!! // not null by definition of findLatestRelease
+
+      // Due to CORS issue, we remove the protocol so that it gets treated as a local download and the local
+      // server will proxy the request appropriately.
+      if (downloadURL.startsWith("https://github.com/pongasoft"))
+        downloadURL = downloadURL.substringAfter("https:/")
+      else
+        println("[WARNING] Unexpected download URL $downloadURL... trying anyway")
+
+      println("detected github version $version / ${asset.browser_download_url} / $downloadURL")
+
+      fetchBlob(downloadURL).then { blob -> Pair(version, blob) }
+    }
+  }.flatten()
+}
+
+/**
+ * Main method called when the page loads.
+ */
 fun init() {
   val elements = arrayOf("name",
                          "enable_vst2",
@@ -189,7 +246,12 @@ fun init() {
 
   notification.info("Loading latest Jamba Blank Plugin...")
 
-  loadJambaZip()
+  val params = URLSearchParams(window.location.search)
+  val version = params.get("version")
+
+  val jambaZip = if(version != null) loadLocalJambaZip(version) else loadJambaZip()
+
+  jambaZip
       // zip loaded => build the cache
       .then { (version, zip) ->
         document.getElementById("jamba_version")?.textContent = "[$version]"
@@ -202,12 +264,15 @@ fun init() {
         // handle submitting the form
         elements["submit"]?.addListener("click") {
           cache.generatePlugin(form!!).then { (filename, blob) ->
+            notification.success("Plugin [$filename] generated successfully. Downloading...")
             downloadFile(filename, blob)
+            notification.success("Download complete (check you download folder).")
           }
         }
       }
       // in case of error => report error and install different listener
       .catch {
+        println(it)
         notification.error("Could not fetch blank plugin - ${it.message}. Try refreshing the page...")
 
         elements["submit"]?.addListener("click") {
@@ -230,11 +295,11 @@ fun init() {
     elements["company_url"]?.setComputedValue("https://www.$value.com")
     elements["company_email"]?.setComputedValue("support@$value.com")
   }
-
-
 }
 
+/**
+ * Javascript entry point
+ */
 fun main() {
-  println("Hello world")
   init()
 }

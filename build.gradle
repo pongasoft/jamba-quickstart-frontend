@@ -1,13 +1,30 @@
+buildscript {
+  dependencies {
+    classpath 'org.pongasoft:org.linkedin.gradle-plugins:2.2.9'
+  }
+}
+
 plugins {
   id 'kotlin2js' version "1.3.40"
 }
 
-group 'org.pongasoft'
-version '1.0.0'
+apply plugin: 'org.linkedin.spec'
+
+group = spec.group
+version = spec.version
+
+/**
+ * The org.linkedin.spec plugin dynamically changes the version if run with or
+ * without the -Prelease=true argument, thus allowing to determine whether
+ * dev mode or production mode
+ */
+def devMode = version.endsWith("-SNAPSHOT")
 
 repositories {
   mavenCentral()
 }
+
+apply plugin: 'kotlin-dce-js'
 
 def kotlinVersion = "1.3.40"
 
@@ -19,11 +36,22 @@ dependencies {
 compileKotlin2Js {
   kotlinOptions {
     moduleKind = "umd"
-    sourceMap = true
+    sourceMap = devMode
   }
 }
 
-task assembleWeb(type: Sync) {
+// adding extension method child to File class
+File.metaClass.child << { String c -> new File(delegate as File, c) }
+
+def webDirDev = buildDir.child("web-dev")
+def webDirProd = buildDir.child("web")
+
+def webDir = devMode ? webDirDev : webDirProd
+
+/**
+ * used in dev mode
+ */
+task assembleWebDev(type: Sync) {
   configurations.compile.each { File file ->
     from(zipTree(file.absolutePath), {
       includeEmptyDirs = false
@@ -35,16 +63,31 @@ task assembleWeb(type: Sync) {
     })
   }
   from compileKotlin2Js.destinationDir
-  into "${buildDir}/web/dynamic/js"
+  into webDirDev.child("dynamic").child("js")
 
   dependsOn classes
 }
 
-processResources {
-  destinationDir file("${buildDir}/web/")
+/**
+ * Used in prod mode (using `afterEvaluate` because `runDceKotlinJs.destinationDir`
+ * is `null` otherwise)
+ */
+afterEvaluate {
+  task assembleWeb(type: Sync, dependsOn: 'runDceKotlinJs') {
+    from runDceKotlinJs.destinationDir
+    exclude { it.name.endsWith(".map") }
+    into webDirProd.child("dynamic").child("js")
+  }
+
+  if(devMode)
+    assemble.dependsOn assembleWebDev
+  else
+    assemble.dependsOn assembleWeb
 }
 
-assemble.dependsOn assembleWeb
+processResources {
+  destinationDir webDir
+}
 
 def webServerDockerImage = "$group/nginx/jamba-quickstart-frontend:$version"
 
@@ -60,15 +103,15 @@ task webserverBuild(type: Exec) {
 def webServerDockerContainer = "jamba-quickstart-frontend_webserver"
 
 /**
- * Runs the web server
+ * Runs the web server. Note that when running the task it just waits there and display log output or error. Using
+ * CTRL-C to terminate will properly remove the container (option `--rm`).
  */
 task 'webserver-start'(dependsOn: [assemble, webserverBuild], type: Exec) {
-  workingDir file("${buildDir}/web")
-  commandLine(["docker", "run", "--rm", "--name", webServerDockerContainer, "-e", "TZ=America/Los_Angeles", "-p", "8080:80", "-v", "${buildDir.canonicalPath}/web:/usr/share/nginx/html:ro", webServerDockerImage])
+  commandLine(["docker", "run", "--rm", "--name", webServerDockerContainer, "-e", "TZ=America/Los_Angeles", "-p", "8080:80", "-v", "${webDir.canonicalPath}:/usr/share/nginx/html:ro", webServerDockerImage])
 }
 
 /**
- * Stops the web server
+ * Stops the web server. Should not be needed but just in case...
  */
 task 'webserver-stop'(type: Exec) {
   commandLine(["docker", "container", "rm", webServerDockerContainer])

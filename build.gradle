@@ -43,76 +43,78 @@ compileKotlin2Js {
 // adding extension method child to File class
 File.metaClass.child << { String c -> new File(delegate as File, c) }
 
-def webDirDev = buildDir.child("web-dev")
-def webDirProd = buildDir.child("web")
+if (devMode) {
+  def webServerDockerImage = "$group/nginx/jamba-quickstart-frontend:$version"
+  def webServerDockerContainer = "jamba-quickstart-frontend_webserver"
 
-def webDir = devMode ? webDirDev : webDirProd
+  def webDir = buildDir.child("web-dev")
 
-/**
- * used in dev mode
- */
-task assembleWebDev(type: Sync) {
-  configurations.compile.each { File file ->
-    from(zipTree(file.absolutePath), {
-      includeEmptyDirs = false
-      include { fileTreeElement ->
-        def path = fileTreeElement.path
-        path.endsWith(".js") && (path.startsWith("META-INF/resources/") ||
-            !path.startsWith("META-INF/"))
-      }
-    })
-  }
-  from compileKotlin2Js.destinationDir
-  into webDirDev.child("dynamic").child("js")
+  task assembleWeb(type: Sync) {
+    configurations.compile.each { File file ->
+      from(zipTree(file.absolutePath), {
+        includeEmptyDirs = false
+        include { fileTreeElement ->
+          def path = fileTreeElement.path
+          path.endsWith(".js") && (path.startsWith("META-INF/resources/") ||
+              !path.startsWith("META-INF/"))
+        }
+      })
+    }
+    from compileKotlin2Js.destinationDir
+    into webDir.child("js")
 
-  dependsOn classes
-}
-
-/**
- * Used in prod mode (using `afterEvaluate` because `runDceKotlinJs.destinationDir`
- * is `null` otherwise)
- */
-afterEvaluate {
-  task assembleWeb(type: Sync, dependsOn: 'runDceKotlinJs') {
-    from runDceKotlinJs.destinationDir
-    exclude { it.name.endsWith(".map") }
-    into webDirProd.child("dynamic").child("js")
+    dependsOn classes
   }
 
-  if(devMode)
-    assemble.dependsOn assembleWebDev
-  else
+  assemble.dependsOn assembleWeb
+
+  /**
+   * Runs docker build to build an nginx web server (see Dockerfile for config) to serve static pages and
+   * acts as a proxy for avoiding CORS issue with downloading assets from github
+   */
+  task webserverBuild(type: Exec) {
+    workingDir file("webserver")
+    commandLine(["docker", "build", "-t", webServerDockerImage, "."])
+  }
+
+  // I am sure there is a better way to get to this path but good luck finding it in the documentation...
+  def resourcesDir = file('src/main/resources')
+
+  /**
+   * Runs the web server. Note that when running the task it just waits there and display log output or error. Using
+   * CTRL-C to terminate will properly remove the container (option `--rm`).
+   *
+   * In dev mode, the server is run with 2 mounts:
+   * - /s (for static) points directly in the source tree so that it is easy to simply edit/save the static file
+   * - /d (for dynamic) points in the generated folder (can use assemble task to regenerate)
+   */
+  task 'webserver-start'(dependsOn: [assemble, webserverBuild], type: Exec) {
+    commandLine(["docker", "run", "--rm", "--name", webServerDockerContainer, "-e", "TZ=America/Los_Angeles", "-p", "8080:80", "-v", "${resourcesDir.canonicalPath}:/usr/share/nginx/html/static:ro", "-v", "${webDir.canonicalPath}:/usr/share/nginx/html/dynamic:ro", webServerDockerImage])
+  }
+
+  /**
+   * Stops the web server. Should not be needed but just in case...
+   */
+  task 'webserver-stop'(type: Exec) {
+    commandLine(["docker", "container", "rm", webServerDockerContainer])
+  }
+} else {
+  def webDir = buildDir.child("web")
+
+  // prod mode
+  // using `afterEvaluate` because `runDceKotlinJs.destinationDir` is `null` otherwise
+  afterEvaluate {
+    task assembleWeb(type: Sync, dependsOn: 'runDceKotlinJs') {
+      from runDceKotlinJs.destinationDir
+      exclude { it.name.endsWith(".map") }
+      into webDir.child("js")
+    }
+
     assemble.dependsOn assembleWeb
-}
+  }
 
-processResources {
-  destinationDir webDir
-}
-
-def webServerDockerImage = "$group/nginx/jamba-quickstart-frontend:$version"
-
-/**
- * Runs docker build to build an nginx web server (see Dockerfile for config) to serve static pages and
- * acts as a proxy for avoiding CORS issue with downloading assets from github
- */
-task webserverBuild(type: Exec) {
-  workingDir file("webserver")
-  commandLine(["docker", "build", "-t", webServerDockerImage, "."])
-}
-
-def webServerDockerContainer = "jamba-quickstart-frontend_webserver"
-
-/**
- * Runs the web server. Note that when running the task it just waits there and display log output or error. Using
- * CTRL-C to terminate will properly remove the container (option `--rm`).
- */
-task 'webserver-start'(dependsOn: [assemble, webserverBuild], type: Exec) {
-  commandLine(["docker", "run", "--rm", "--name", webServerDockerContainer, "-e", "TZ=America/Los_Angeles", "-p", "8080:80", "-v", "${webDir.canonicalPath}:/usr/share/nginx/html:ro", webServerDockerImage])
-}
-
-/**
- * Stops the web server. Should not be needed but just in case...
- */
-task 'webserver-stop'(type: Exec) {
-  commandLine(["docker", "container", "rm", webServerDockerContainer])
+  // also copy the static resources
+  processResources {
+    destinationDir webDir
+  }
 }

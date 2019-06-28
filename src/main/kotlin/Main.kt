@@ -188,7 +188,11 @@ fun findLatestRelease(releases: Array<GithubRelease>): GithubRelease? {
  * Loads a local copy (used to bypass github)
  */
 fun loadLocalJambaZip(version: String) : Promise<Pair<String, Blob>> {
-  val assetPath = "/static/assets/jamba-blank-plugin-$version.zip"
+
+  if(version == "vx.x.x")
+    return Promise.reject(Exception("vx.x.x"))
+
+  val assetPath = "assets/jamba-blank-plugin-$version.zip"
   println("Fetching Jamba Blank Plugin locally $assetPath")
   return fetchBlob(assetPath).then { blob -> Pair(version, blob) }
 }

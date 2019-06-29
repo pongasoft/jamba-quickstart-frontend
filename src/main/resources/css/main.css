@@ -1,8 +1,11 @@
 body {
-    font-family: "Verdana", sans-serif;
+    font-family: "Nanum Gothic Coding", monospace;
+    background: black;
+    color: #00ff00;
 }
 
 #notification {
+    margin-top: 1em;
     width: 100%;
     background: black;
     color: grey;
@@ -28,8 +31,8 @@ table {
 }
 
 table, th, td {
-    border-top: 1px solid lightgray;
-    border-bottom: 1px solid lightgray;
+    border-top: 1px solid #222222;
+    border-bottom: 1px solid #222222;
 }
 
 td {
@@ -47,12 +50,31 @@ td.control input {
 
 td.control input[type="text"] {
     padding: 5px;
+    font-family: "Nanum Gothic Coding", monospace;
+    background-color: black;
+    color: #00ff00;
+    border: solid 1px #00ff00;
+    border-radius: 5px;
 }
 
-tr:nth-child(even) {
-    background-color: #f2f2f2;
+td.control input[type="button"] {
+    font-size: 1em;
+    color: black;
+    background-color: #00ff00;
+    border: solid 1px #00ff00;
+    border-radius: 5px;
 }
 
-#submit {
-    font-size: 2em;
+td.control input[type="button"]:disabled {
+    background-color: #004400;
+    color: black;
+    border: solid 1px #004400;
+    cursor: not-allowed;
+}
+
+td.control input[type="button"]:active {
+    background-color: #004400;
+    color: #00ff00;
+    border: solid 1px #00ff00;
+    border-radius: 5px;
 }

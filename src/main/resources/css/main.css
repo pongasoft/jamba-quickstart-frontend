@@ -1,3 +1,7 @@
+body {
+    font-family: "Verdana", sans-serif;
+}
+
 #notification {
     width: 100%;
     background: black;
@@ -12,4 +16,43 @@
 
 #notification .error {
     color: indianred;
+}
+
+.desc {
+    font-style: italic;
+    padding-left: 1em;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+table, th, td {
+    border-top: 1px solid lightgray;
+    border-bottom: 1px solid lightgray;
+}
+
+td {
+    padding: 0.5em;
+}
+
+td.name {
+    text-align: right;
+    font-weight: bold;
+}
+
+td.control input {
+    width: 100%;
+}
+
+td.control input[type="text"] {
+    padding: 5px;
+}
+
+tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+#submit {
+    font-size: 2em;
 }

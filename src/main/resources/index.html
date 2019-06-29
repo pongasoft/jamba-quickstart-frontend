@@ -27,7 +27,7 @@
           </tr>
           <tr>
             <td class="name"><label for="audio_unit_manufacturer_code">Audio Unit Manufacturer</label></td>
-            <td class="control"><input type="text" name="audio_unit_manufacturer_code" id="audio_unit_manufacturer_code" value=""></td>
+            <td class="control"><input type="text" maxlength="4" name="audio_unit_manufacturer_code" id="audio_unit_manufacturer_code" value=""></td>
             <td class="desc">Must be 4 characters with (at least) one capital letter</td>
           </tr>
           <tr>
@@ -61,7 +61,9 @@
             <td class="desc">Name of the project itself (which will be the name of the zip file generated)</td>
           </tr>
           <tr>
-            <td colspan="3"><input type="button" id="submit" value="Generate blank plugin" disabled="disabled"></td>
+            <td class="name"></td>
+            <td class="control"><input type="button" id="submit" value="Generate blank plugin" disabled="disabled"></td>
+            <td class="desc"></td>
           </tr>
         </tbody>
       </table>

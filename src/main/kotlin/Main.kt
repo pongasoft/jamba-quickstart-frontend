@@ -156,38 +156,12 @@ fun fetchBlob(url: String, method: String = "GET"): Promise<Blob> {
   return fetchURL(url, method) { it.blob() }
 }
 
-/**
- * Definition of the parts of the github rest api used by this code
- */
-external class GithubReleaseAsset {
-  val name: String?
-  val browser_download_url: String?
-}
-
-external class GithubRelease {
-  val tag_name: String?
-  val assets: Array<GithubReleaseAsset>?
-}
-
-/**
- * Looks for an asset with a name starting with `jamba-blank-plugin`. It will be of the
- * form `jamba-blank-plugin-vX.Y.Z.zip`)
- */
-fun GithubRelease.findJambaBlankPlugin() = assets?.find { it.name?.startsWith("jamba-blank-plugin") ?: false }
-
-/**
- * Finds the latest (or more recent) release which contains the blank plugin zip file
- */
-fun findLatestRelease(releases: Array<GithubRelease>): GithubRelease? {
-  return releases.find { release ->
-    release.tag_name != null && release.findJambaBlankPlugin() != null
-  }
-}
+typealias PJambaZip = Promise<Pair<String, Blob>>
 
 /**
  * Loads a local copy (used to bypass github)
  */
-fun loadLocalJambaZip(version: String) : Promise<Pair<String, Blob>> {
+fun loadLocalJambaZip(version: String) : PJambaZip {
 
   if(version == "vx.x.x")
     return Promise.reject(Exception("vx.x.x"))
@@ -198,33 +172,16 @@ fun loadLocalJambaZip(version: String) : Promise<Pair<String, Blob>> {
 }
 
 /**
- * https://api.github.com/repos/pongasoft/jamba/releases returns json
+ * Tries to determine the jamba version (from the query string, html meta tag)
  */
-fun loadJambaZip(): Promise<Pair<String, Blob>> {
-  // async fetch of the blob
+fun findJambaVersion() : String? {
+  // 1. try to locate the version number as a query string
+  val fromQueryStringVersion = URLSearchParams(window.location.search).get("version")
+  if(fromQueryStringVersion != null)
+    return fromQueryStringVersion
 
-  val jambaReleasesGithubAPI = "https://api.github.com/repos/pongasoft/jamba/releases"
-  return fetchJson(jambaReleasesGithubAPI).then { releases: Array<GithubRelease> ->
-    val latestRelease = findLatestRelease(releases)
-    if (latestRelease == null) {
-      Promise.reject(Exception("Could not determine latest jamba release"))
-    } else {
-      val version = latestRelease.tag_name!! // not null by definition of findLatestRelease
-      val asset = latestRelease.findJambaBlankPlugin()!! // not null by definition of findLatestRelease
-      var downloadURL = asset.browser_download_url!! // not null by definition of findLatestRelease
-
-      // Due to CORS issue, we remove the protocol so that it gets treated as a local download and the local
-      // server will proxy the request appropriately.
-      if (downloadURL.startsWith("https://github.com/pongasoft"))
-        downloadURL = downloadURL.substringAfter("https:/")
-      else
-        println("[WARNING] Unexpected download URL $downloadURL... trying anyway")
-
-      println("detected github version $version / ${asset.browser_download_url} / $downloadURL")
-
-      fetchBlob(downloadURL).then { blob -> Pair(version, blob) }
-    }
-  }.flatten()
+  // 2. from a meta tag in the html
+  return document.querySelector("meta[name='X-jamba-latest-release']")?.getAttribute("content")
 }
 
 /**
@@ -248,41 +205,36 @@ fun init() {
 
   val notification = Notification("notification")
 
-  notification.info("Loading latest Jamba Blank Plugin...")
+  val version = findJambaVersion()
 
-  val params = URLSearchParams(window.location.search)
-  val version = params.get("version")
+  if(version == null) {
+    notification.error("Could not determine Jamba version... please refresh the page")
+    return
+  }
 
-  val jambaZip = if(version != null) loadLocalJambaZip(version) else loadJambaZip()
+  val jambaZip : PJambaZip by lazy { loadLocalJambaZip(version) }
 
-  jambaZip
-      // zip loaded => build the cache
-      .then { (version, zip) ->
-        document.getElementById("jamba_version")?.textContent = "[$version]"
-        buildCache(version, zip)
-      }
-      // cache built => install listener
-      .then { cache ->
-        notification.info("Loaded Jamba Blank Plugin version ${cache.jambaGitHash} - ${cache.fileCount} files.")
-
-        // handle submitting the form
-        elements["submit"]?.addListener("click") {
+  elements["submit"]?.addListener("click") {
+    notification.info("Loading Jamba Blank Plugin...")
+    jambaZip
+        .then { (version, zip) ->
+          document.getElementById("jamba_version")?.textContent = "[$version]"
+          buildCache(version, zip)
+        }
+        .then { cache ->
+          notification.info("Loaded Jamba Blank Plugin version ${cache.jambaGitHash} - ${cache.fileCount} files.")
           cache.generatePlugin(form!!).then { (filename, blob) ->
-            notification.success("Plugin [$filename] generated successfully. Downloading...")
+            notification.info("Plugin [$filename] generated successfully. Downloading...")
             downloadFile(filename, blob)
             notification.success("Download complete (check you download folder).")
           }
         }
-      }
-      // in case of error => report error and install different listener
-      .catch {
-        println(it)
-        notification.error("Could not fetch blank plugin - ${it.message}. Try refreshing the page...")
-
-        elements["submit"]?.addListener("click") {
-          notification.error("Could not fetch blank plugin. Try refreshing the page...")
+        // in case of error => report error and install different listener
+        .catch {
+          println(it)
+          notification.error("Could not fetch blank plugin - ${it.message}. Try refreshing the page...")
         }
-      }
+  }
 
   // defines what happens when the plugin name is entered/changed
   elements["name"]?.onChange {

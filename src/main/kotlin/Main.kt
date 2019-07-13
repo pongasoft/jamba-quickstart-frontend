@@ -1,5 +1,6 @@
-import org.w3c.dom.HTMLAnchorElement
-import org.w3c.dom.HTMLInputElement
+import kotlinx.html.*
+import kotlinx.html.dom.create
+import org.w3c.dom.*
 import org.w3c.dom.events.Event
 import org.w3c.dom.url.URL
 import org.w3c.dom.url.URLSearchParams
@@ -12,16 +13,26 @@ import kotlin.dom.createElement
 import kotlin.js.Promise
 
 /**
+ * Finds (may not exist) the content of a meta entry whose name is provided */
+fun Document.findMetaContent(name: String): String? {
+  return querySelector("meta[name='$name']")?.getAttribute("content")
+}
+
+/**
  * Encapsulates a notification section where messages can be added */
-class Notification(id: String) {
-  val element = document.getElementById(id)!!
+class Notification(id: String? = null) {
+  val element = id?.let { document.getElementById(it) }
 
   private fun addTextLine(message: String, status: String? = null) {
-    val div = document.createElement("div")
-    if (status != null)
-      div.classList.add(status)
-    div.appendChild(document.createTextNode(message))
-    element.appendChild(div)
+    if (element != null) {
+      val div = document.createElement("div")
+      if (status != null)
+        div.classList.add(status)
+      div.appendChild(document.createTextNode(message))
+      element.appendChild(div)
+    } else {
+      println("[${status ?: "info"}] $message")
+    }
   }
 
   fun info(message: String) {
@@ -125,12 +136,16 @@ inline fun <T> Promise<Promise<T>>.flatten(): Promise<T> {
  * Fetches the URL and processes the response (only when successful) via [onFulfilled]. If not successful or
  * rejection, then an exception is thrown (should be handled via [Promise.catch])
  */
-fun <T> fetchURL(url: String,
-                 method: String = "GET",
-                 onFulfilled: (Response) -> Promise<T>): Promise<T> {
+fun <T> fetchURL(
+    url: String,
+    method: String = "GET",
+    onFulfilled: (Response) -> Promise<T>
+): Promise<T> {
 
-  return window.fetch(url,
-                      RequestInit(method = method))
+  return window.fetch(
+      url,
+      RequestInit(method = method)
+  )
       .then(
           onFulfilled = { response ->
             if (response.ok && response.status == 200.toShort()) {
@@ -156,63 +171,179 @@ fun fetchBlob(url: String, method: String = "GET"): Promise<Blob> {
   return fetchURL(url, method) { it.blob() }
 }
 
+/**
+ * Encapsulates the entries that the user fills out to customize the blank plugin
+ */
+data class OptionEntry(
+    val name: String,
+    val label: String,
+    val type: InputType = InputType.text,
+    val defaultValue: String = "",
+    val desc: String = "",
+    val maxLength: Int? = null
+)
+
+/**
+ * All entries
+ */
+val entries =
+    arrayOf(
+        OptionEntry(
+            name = "name",
+            label = "Plugin Name",
+            desc = "Must be a valid C++ class name"
+        ),
+        OptionEntry(
+            name = "enable_vst2",
+            type = InputType.checkBox,
+            label = "Enable VST2",
+            desc = "Makes the plugin compatible with both VST2 and VST3"
+        ),
+        OptionEntry(
+            name = "enable_audio_unit",
+            type = InputType.checkBox,
+            label = "Enable Audio Unit",
+            desc = "Generates an (additional) Audio Unit compatible plugin"
+        ),
+        OptionEntry(
+            name = "audio_unit_manufacturer_code",
+            label = "Audio Unit Manufacturer",
+            desc = "Must be 4 characters with (at least) one capital letter",
+            maxLength = 4
+        ),
+        OptionEntry(
+            name = "filename",
+            label = "Filename",
+            desc = "The name used for the plugin file (building the plugin will generate <Filename>.VST3)"
+        ),
+        OptionEntry(
+            name = "company",
+            label = "Company",
+            desc = "Name of the company (your name if not company)"
+        ),
+        OptionEntry(
+            name = "company_url",
+            label = "Company URL",
+            desc = "A URL for the company (a link to reach you if not a company)"
+        ),
+        OptionEntry(
+            name = "company_email",
+            label = "Company Email",
+            desc = "An email address for the company (your email of not a company)"
+        ),
+        OptionEntry(
+            name = "namespace",
+            label = "C++ namespace",
+            desc = "Although recommended, you can leave blank if you do not want to use a namespace"
+        ),
+        OptionEntry(
+            name = "project_name",
+            label = "Project name",
+            desc = "Name of the project itself (which will be the name of the zip file generated)"
+        )
+    )
+
+
+/**
+ * Extension function to handle `OptionEntry`
+ */
+fun TBODY.optionEntry(entry: OptionEntry): Unit = tr {
+  td("name") { label { htmlFor = entry.name; +entry.label } }
+  td("control") {
+    input(type = entry.type, name = entry.name) {
+      id = entry.name
+      value = entry.defaultValue
+      entry.maxLength?.let { maxLength = entry.maxLength.toString() }
+      if (entry.type == InputType.checkBox)
+        checked = true
+      +entry.defaultValue
+    }
+  }
+  td("desc") { +entry.desc }
+}
+
+/**
+ * Creates the html form for the page
+ */
+fun createHTML(entries: Iterator<OptionEntry>, elementId: String? = null, classes: String? = null): HTMLElement {
+  val form = document.create.form(method = FormMethod.post, classes = classes) {
+    elementId?.let { id = elementId }
+    table {
+      tbody {
+        entries.forEach { optionEntry(it) }
+        tr {
+          td("name")
+          td("control") {
+            input(type = InputType.button) {
+              id = "submit"
+              value = "Generate blank plugin"
+              disabled = true
+            }
+          }
+          td("desc")
+        }
+      }
+    }
+  }
+
+  return form
+}
+
+/**
+ * Defining a type alias for convenience
+ */
 typealias PJambaZip = Promise<Pair<String, Blob>>
 
 /**
- * Loads a local copy (used to bypass github)
+ * Loads the zip file containing the template for the blank plugin (with replacement tokens)
  */
-fun loadLocalJambaZip(version: String) : PJambaZip {
+fun loadJambaZip(version: String): PJambaZip {
 
-  if(version == "vx.x.x")
-    return Promise.reject(Exception("vx.x.x"))
-
-  val assetPath = "assets/jamba-blank-plugin-$version.zip"
-  println("Fetching Jamba Blank Plugin locally $assetPath")
-  return fetchBlob(assetPath).then { blob -> Pair(version, blob) }
+  return fetchBlob("assets/jamba-blank-plugin-$version.zip").then { blob -> Pair(version, blob) }
 }
 
 /**
  * Tries to determine the jamba version (from the query string, html meta tag)
  */
-fun findJambaVersion() : String? {
+fun findJambaVersion(): String? {
   // 1. try to locate the version number as a query string
   val fromQueryStringVersion = URLSearchParams(window.location.search).get("version")
-  if(fromQueryStringVersion != null)
+  if (fromQueryStringVersion != null)
     return fromQueryStringVersion
 
   // 2. from a meta tag in the html
-  return document.querySelector("meta[name='X-jamba-latest-release']")?.getAttribute("content")
+  return document.findMetaContent("X-jamba-latest-release")
 }
 
 /**
  * Main method called when the page loads.
  */
 fun init() {
-  val elements = arrayOf("name",
-                         "enable_vst2",
-                         "enable_audio_unit",
-                         "audio_unit_manufacturer_code",
-                         "filename",
-                         "filename",
-                         "company",
-                         "company_url",
-                         "company_email",
-                         "namespace",
-                         "project_name",
-                         "submit").associateBy({ it }) { id ->
-    document.getElementById(id) as? HTMLInputElement
+
+  val jambaFormID = document.findMetaContent("X-jamba-form-id") ?: "jamba-form"
+
+  document.getElementById(jambaFormID)
+      ?.replaceWith(createHTML(entries.iterator(),
+                               elementId = jambaFormID,
+                               classes = document.findMetaContent("X-jamba-form-class")))
+
+  val elements = entries.associateBy({ it.name }) { entry ->
+    document.getElementById(entry.name) as? HTMLInputElement
   }
 
   val notification = Notification("notification")
 
+  notification.info("Welcome to Jamba Plugin Generator")
+  notification.info("Please fill out the form (Plugin name is required) and click <Generate> when you are done")
+
   val version = findJambaVersion()
 
-  if(version == null) {
+  if (version == null) {
     notification.error("Could not determine Jamba version... please refresh the page")
     return
   }
 
-  val jambaZip : PJambaZip by lazy { loadLocalJambaZip(version) }
+  val jambaZip: PJambaZip by lazy { loadJambaZip(version) }
 
   elements["submit"]?.addListener("click") {
     notification.info("Loading Jamba Blank Plugin...")

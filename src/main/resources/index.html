@@ -4,6 +4,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <title>Jamba - Quickstart</title>
     <script type="text/javascript" src="js/kotlin.js"></script>
+    <script type="text/javascript" src="js/kotlinx-html-js.js"></script>
     <script type="text/javascript" src="js/jszip.min.js"></script>
     <link href="css/main.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Nanum+Gothic+Coding&display=swap" rel="stylesheet">
@@ -11,72 +12,7 @@
 </head>
 <body>
 <h1>Jamba <span id="jamba_version"></span> - Quick Start</h1>
-<form method="post">
-    <table>
-        <tbody>
-        <tr>
-            <td class="name"><label for="name">Plugin Name</label></td>
-            <td class="control"><input type="text" name="name" id="name" value=""></td>
-            <td class="desc">Must be a valid C++ class name</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="enable_vst2">Enable VST2</label></td>
-            <td class="control"><input type="checkbox" name="enable_vst2" id="enable_vst2" value="" checked="checked">
-            </td>
-            <td class="desc">Makes the plugin compatible with both VST2 and VST3</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="enable_audio_unit">Enable Audio Unit</label></td>
-            <td class="control"><input type="checkbox" name="enable_audio_unit" id="enable_audio_unit" value=""
-                                       checked="checked"></td>
-            <td class="desc">Generates an (additional) Audio Unit compatible plugin</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="audio_unit_manufacturer_code">Audio Unit Manufacturer</label></td>
-            <td class="control"><input type="text" maxlength="4" name="audio_unit_manufacturer_code"
-                                       id="audio_unit_manufacturer_code" value=""></td>
-            <td class="desc">Must be 4 characters with (at least) one capital letter</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="filename">Filename</label></td>
-            <td class="control"><input type="text" name="filename" id="filename" value=""></td>
-            <td class="desc">The name used for the plugin file (building the plugin will generate
-                &lt;Filename&gt;.VST3)
-            </td>
-        </tr>
-        <tr>
-            <td class="name"><label for="company">Company</label></td>
-            <td class="control"><input type="text" name="company" id="company" value=""></td>
-            <td class="desc">Name of the company (your name if not company)</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="company_url">Company URL</label></td>
-            <td class="control"><input type="text" name="company_url" id="company_url" value=""></td>
-            <td class="desc">A URL for the company (a link to reach you if not a company)</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="company_email">Company Email</label></td>
-            <td class="control"><input type="text" name="company_email" id="company_email" value=""></td>
-            <td class="desc">An email address for the company (your email of not a company)</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="namespace">C++ namespace</label></td>
-            <td class="control"><input type="text" name="namespace" id="namespace" value=""></td>
-            <td class="desc">Although recommended, you can leave blank if you do not want to use a namespace</td>
-        </tr>
-        <tr>
-            <td class="name"><label for="project_name">Project name</label></td>
-            <td class="control"><input type="text" name="project_name" id="project_name" value=""></td>
-            <td class="desc">Name of the project itself (which will be the name of the zip file generated)</td>
-        </tr>
-        <tr>
-            <td class="name"></td>
-            <td class="control"><input type="button" id="submit" value="Generate blank plugin" disabled="disabled"></td>
-            <td class="desc"></td>
-        </tr>
-        </tbody>
-    </table>
-</form>
+<div id="jamba-form">Initializing... (if this message does not disappear, check that javascript is enabled)</div>
 <div id="notification"></div>
 <script type="text/javascript" src="js/jamba-quickstart-frontend.js"></script>
 

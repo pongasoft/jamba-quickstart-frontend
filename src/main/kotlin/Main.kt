@@ -176,11 +176,12 @@ fun fetchBlob(url: String, method: String = "GET"): Promise<Blob> {
  */
 data class OptionEntry(
     val name: String,
-    val label: String,
+    val label: String? = null,
     val type: InputType = InputType.text,
-    val defaultValue: String = "",
-    val desc: String = "",
-    val maxLength: Int? = null
+    val defaultValue: String? = null,
+    val desc: String? = null,
+    val maxLength: Int? = null,
+    val disabled: Boolean? = null
 )
 
 /**
@@ -240,6 +241,12 @@ val entries =
             name = "project_name",
             label = "Project name",
             desc = "Name of the project itself (which will be the name of the zip file generated)"
+        ),
+        OptionEntry(
+            name = "submit",
+            type = InputType.button,
+            defaultValue = "Generate blank plugin",
+            disabled = true
         )
     )
 
@@ -248,18 +255,27 @@ val entries =
  * Extension function to handle `OptionEntry`
  */
 fun TBODY.optionEntry(entry: OptionEntry): Unit = tr {
-  td("name") { label { htmlFor = entry.name; +entry.label } }
+  td("name") { entry.label ?.let { label { htmlFor = entry.name; +entry.label } } }
   td("control") {
     input(type = entry.type, name = entry.name) {
       id = entry.name
-      value = entry.defaultValue
+
       entry.maxLength?.let { maxLength = entry.maxLength.toString() }
+
       if (entry.type == InputType.checkBox)
         checked = true
-      +entry.defaultValue
+
+      if(entry.defaultValue != null) {
+        value = entry.defaultValue
+        +entry.defaultValue
+      }
+
+      if(entry.disabled != null) {
+        disabled = entry.disabled
+      }
     }
   }
-  td("desc") { +entry.desc }
+  td("desc") { entry.desc?.let { +entry.desc } }
 }
 
 /**
@@ -271,17 +287,6 @@ fun createHTML(entries: Iterator<OptionEntry>, elementId: String? = null, classe
     table {
       tbody {
         entries.forEach { optionEntry(it) }
-        tr {
-          td("name")
-          td("control") {
-            input(type = InputType.button) {
-              id = "submit"
-              value = "Generate blank plugin"
-              disabled = true
-            }
-          }
-          td("desc")
-        }
       }
     }
   }
@@ -333,8 +338,9 @@ fun init() {
 
   val notification = Notification("notification")
 
-  notification.info("Welcome to Jamba Plugin Generator")
-  notification.info("Please fill out the form (Plugin name is required) and click <Generate> when you are done")
+  document.findMetaContent("X-jamba-notification-welcome-message")?.let {message ->
+    message.split('|').forEach { notification.info(it) }
+  }
 
   val version = findJambaVersion()
 

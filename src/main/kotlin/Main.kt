@@ -243,6 +243,12 @@ val entries =
             desc = "Name of the project itself (which will be the name of the zip file generated)"
         ),
         OptionEntry(
+            name = "download_vst_sdk",
+            type = InputType.checkBox,
+            label = "Download VST SDK",
+            desc = "Automatically downloads the VST SDK required to use Jamba"
+        ),
+        OptionEntry(
             name = "submit",
             type = InputType.button,
             defaultValue = "Generate blank plugin",
@@ -378,6 +384,7 @@ fun init() {
     elements["audio_unit_manufacturer_code"]?.setComputedValue(computeAudioUnitManufacturerCode(value))
     elements["namespace"]?.setComputedValue(computeNamespace(value, elements["company"]?.value))
     elements["project_name"]?.setComputedValue(computeProjectName(value, elements["company"]?.value))
+    elements["filename"]?.setComputedValue(value)
     elements["submit"]?.disabled = value.isEmpty()
   }
 

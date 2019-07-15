@@ -17,7 +17,8 @@ fun buildCache(version: String, blob: Blob): Promise<BlankPluginCache> {
 
     val promises = mutableListOf<Promise<Pair<String, String>>>()
 
-    zip.forEach { relativePath, file ->
+    zip.forEach { path, file ->
+      val relativePath = path.substringAfter("blank-plugin/")
       if(!(relativePath.startsWith("__MACOSX") ||
               relativePath.startsWith(".idea") ||
               relativePath.endsWith(".DS_Store"))) {
@@ -130,6 +131,7 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
     setToken("remote_jamba", "")
     setBooleanToken("enable_vst2")
     setBooleanToken("enable_audio_unit")
+    setBooleanToken("download_vst_sdk")
 
     val t = newTokens.mapKeys { (k,_) -> "[-$k-]" }
     files.forEach { (name, content) ->
@@ -155,8 +157,16 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
 
     val zip = JSZip()
 
+    val rootDir = zip.folder(root)
+
+    // this is a workaround around an "issue" in JSZip... https://github.com/Stuk/jszip/issues/369
+    val currDate = Date()
+    val dateWithOffset = Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000)
+
+    val fileOptions = object : JSZipFileOptions {}.apply { date = dateWithOffset }
+
     forEach(params) { entry, content ->
-      zip.file("$root/$entry", content)
+      rootDir.file(entry, content, fileOptions)
     }
 
     val options = object : JSZipGeneratorOptions {}.apply { type = "blob" }

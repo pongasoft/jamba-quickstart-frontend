@@ -42,7 +42,7 @@ dependencies {
 compileKotlin2Js {
   kotlinOptions {
     moduleKind = "umd"
-    sourceMap = devMode
+    sourceMap = false
   }
 }
 

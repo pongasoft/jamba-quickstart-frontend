@@ -51,6 +51,8 @@ external interface JSZipObject {
     var date: Date
     var comment: String
     var options: JSZipObjectOptions
+    var unixPermissions: Int?
+    var dosPermissions: Int?
     fun async(type: String /* "string" */, onUpdate: Function<*>? = definedExternally /* null */): Promise<Any>
     fun asText()
     fun asBinary()
@@ -65,19 +67,25 @@ external interface JSZipFileOptions {
     var comment: String? get() = definedExternally; set(value) = definedExternally
     var optimizedBinaryString: Boolean? get() = definedExternally; set(value) = definedExternally
     var createFolders: Boolean? get() = definedExternally; set(value) = definedExternally
+    var unixPermissions: Int? get() = definedExternally; set(value) = definedExternally
+    var dosPermissions: Int? get() = definedExternally; set(value) = definedExternally
 }
+
 external interface JSZipObjectOptions {
     var base64: Boolean
     var binary: Boolean
     var dir: Boolean
     var date: Date
     var compression: String
+    var unixPermissions: Int?
+    var dosPermissions: Int?
 }
 external interface JSZipGeneratorOptions {
     var base64: Boolean? get() = definedExternally; set(value) = definedExternally
     var compression: String? get() = definedExternally; set(value) = definedExternally
     var type: String? get() = definedExternally; set(value) = definedExternally
     var comment: String? get() = definedExternally; set(value) = definedExternally
+    var platform: String? get() = definedExternally; set(value) = definedExternally
 }
 external interface JSZipLoadOptions {
     var base64: Boolean? get() = definedExternally; set(value) = definedExternally

@@ -4,6 +4,11 @@ import org.w3c.xhr.FormData
 import kotlin.js.Date
 import kotlin.js.Promise
 
+/**
+ * Maintains the information for each file in the zip archive. Will use permission and date to generate the
+ * outcome archive.
+ */
+data class BlankPluginFile(val relativePath: String, val date: Date?, val unixPermissions: Int?, val content: String)
 
 fun buildCache(version: String, blob: Blob): Promise<BlankPluginCache> {
 
@@ -15,7 +20,7 @@ fun buildCache(version: String, blob: Blob): Promise<BlankPluginCache> {
 
   return zip.loadAsync(blob).then {
 
-    val promises = mutableListOf<Promise<Pair<String, String>>>()
+    val promises = mutableListOf<Promise<BlankPluginFile>>()
 
     zip.forEach { path, file ->
       val relativePath = path.substringAfter("blank-plugin/")
@@ -23,14 +28,14 @@ fun buildCache(version: String, blob: Blob): Promise<BlankPluginCache> {
               relativePath.startsWith(".idea") ||
               relativePath.endsWith(".DS_Store"))) {
         val p = file.async("string").then { content ->
-          Pair(relativePath, content.toString())
+          BlankPluginFile(relativePath, file.date, file.unixPermissions, content.toString())
         }
         promises.add(p)
       }
     }
 
     Promise.all(promises.toTypedArray()).then { array ->
-      BlankPluginCache(version, array.toMap(), UUIDv4)
+      BlankPluginCache(version, array, UUIDv4)
     }
   }.flatten()
 }
@@ -80,7 +85,7 @@ private fun convertToBoolean(s: String?): Boolean {
 
 /**
  * Caches the files in memory */
-class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>, val UUIDGenerator: () -> String) {
+class BlankPluginCache(val jambaGitHash: String, val files: Array<out BlankPluginFile>, val UUIDGenerator: () -> String) {
 
   /**
    * Number of files that make the plugin
@@ -98,7 +103,7 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
   /**
    * Processes each entry in the cache through the token replacement mechanism and invoke action
    * with the result */
-  fun forEach(tokens: Map<String, String>, action: (String, String) -> Unit) {
+  fun forEachFile(tokens: Map<String, String>, action: (BlankPluginFile, String, String) -> Unit) {
 
     val newTokens = tokens.toMutableMap()
 
@@ -129,18 +134,24 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
     setToken("jamba_root_dir", "../../pongasoft/jamba")
     setToken("local_jamba", "#")
     setToken("remote_jamba", "")
+    setToken("target", when(val company = newTokens["company"]) {
+      null -> pluginName
+      ""   -> pluginName
+      else -> "${company}_$pluginName"
+    } )
+    println("company=[${newTokens["company"]}] target=[${newTokens["target"]}]")
     setBooleanToken("enable_vst2")
     setBooleanToken("enable_audio_unit")
     setBooleanToken("download_vst_sdk")
 
     val t = newTokens.mapKeys { (k,_) -> "[-$k-]" }
-    files.forEach { (name, content) ->
-      val processedName = name.replace("__Plugin__", pluginName)
-      var processedContent = content
+    files.forEach { file ->
+      val processedName = file.relativePath.replace("__Plugin__", pluginName)
+      var processedContent = file.content
       for((tokenName, tokenValue) in t) {
         processedContent = processedContent.replace(tokenName, tokenValue)
       }
-      action(processedName, processedContent)
+      action(file, processedName, processedContent)
     }
   }
 
@@ -159,17 +170,19 @@ class BlankPluginCache(val jambaGitHash: String, val files: Map<String, String>,
 
     val rootDir = zip.folder(root)
 
-    // this is a workaround around an "issue" in JSZip... https://github.com/Stuk/jszip/issues/369
-    val currDate = Date()
-    val dateWithOffset = Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000)
-
-    val fileOptions = object : JSZipFileOptions {}.apply { date = dateWithOffset }
-
-    forEach(params) { entry, content ->
+    forEachFile(params) { file, entry, content ->
+      val fileOptions = object : JSZipFileOptions {}.apply {
+        date = file.date
+        unixPermissions = file.unixPermissions
+      }
       rootDir.file(entry, content, fileOptions)
     }
 
-    val options = object : JSZipGeneratorOptions {}.apply { type = "blob" }
+    val options = object : JSZipGeneratorOptions {}.apply {
+      type = "blob"
+      platform = "UNIX"
+    }
+
     return zip.generateAsync(options).then {
       Pair("$root.zip", it as Blob)
     }

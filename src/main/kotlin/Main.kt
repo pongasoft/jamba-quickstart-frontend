@@ -35,8 +35,22 @@ class Notification(id: String? = null) {
     }
   }
 
+  private fun addElement(elt: Element, status: String? = null) {
+    if (element != null) {
+      val div = document.createElement("div")
+      if (status != null)
+        div.classList.add(status)
+      div.appendChild(elt)
+      element.appendChild(div)
+    }
+  }
+
   fun info(message: String) {
     addTextLine(message)
+  }
+
+  fun info(elt: Element) {
+    addElement(elt)
   }
 
   fun success(message: String) {
@@ -115,14 +129,14 @@ fun computeProjectName(pluginName: String?, company: String?): String {
 }
 
 /**
- * This is a "trick" to force the browser to download a file from an internally generated blob. */
-fun downloadFile(filename: String, blob: Blob) {
-  (document.createElement("a") {
+ * Generate the download link. */
+fun generateDownloadAnchor(filename: String, blob: Blob) : HTMLAnchorElement {
+  return document.createElement("a") {
     this as HTMLAnchorElement
     href = URL.createObjectURL(blob)
     target = "_blank"
     download = filename
-  } as HTMLAnchorElement).click()
+  } as HTMLAnchorElement
 }
 
 /**
@@ -309,7 +323,6 @@ typealias PJambaZip = Promise<Pair<String, Blob>>
  * Loads the zip file containing the template for the blank plugin (with replacement tokens)
  */
 fun loadJambaZip(version: String): PJambaZip {
-
   return fetchBlob("assets/jamba-blank-plugin-$version.zip").then { blob -> Pair(version, blob) }
 }
 
@@ -368,7 +381,12 @@ fun init() {
           notification.info("Loaded Jamba Blank Plugin version ${cache.jambaGitHash} - ${cache.fileCount} files.")
           cache.generatePlugin(form!!).then { (filename, blob) ->
             notification.info("Plugin [$filename] generated successfully. Downloading...")
-            downloadFile(filename, blob)
+            val downloadAnchor = generateDownloadAnchor(filename, blob)
+            document.findMetaContent("X-jamba-download-link")?.let {
+              downloadAnchor.text = it
+              notification.info(downloadAnchor)
+            }
+            downloadAnchor.click()
             notification.success("Download complete (check you download folder).")
           }
         }

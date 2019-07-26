@@ -139,7 +139,6 @@ class BlankPluginCache(val jambaGitHash: String, val files: Array<out BlankPlugi
       ""   -> pluginName
       else -> "${company}_$pluginName"
     } )
-    println("company=[${newTokens["company"]}] target=[${newTokens["target"]}]")
     setBooleanToken("enable_vst2")
     setBooleanToken("enable_audio_unit")
     setBooleanToken("download_vst_sdk")

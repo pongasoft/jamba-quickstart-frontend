@@ -30,7 +30,7 @@ List of demonstrated features (build)
 Build
 =====
 
-In development mode, simply run this command (start a web server after compilation)
+In development mode, simply run this command (start a web server after compilation at [http://localhost:8080/index.html](http://localhost:8080/index.html))
 
 ```
 ./gradlew webserver-start

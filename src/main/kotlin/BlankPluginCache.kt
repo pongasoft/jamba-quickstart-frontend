@@ -118,18 +118,10 @@ class BlankPluginCache(val jambaGitHash: String, val files: Array<out BlankPlugi
     val pluginName = setToken("name", "Plugin")
     setToken("jamba_git_hash", jambaGitHash)
 
-    val ns = tokens["namespace"]?.trim()
-
-    if(ns == null || ns.isEmpty()) {
-      newTokens["namespace_start"] = ""
-      newTokens["namespace_end"] = ""
-    } else {
-      newTokens["namespace_start"] = ns.split("::").joinToString(separator = "\n") { "namespace $it {" }
-      newTokens["namespace_end"] = ns.split("::").joinToString(separator = "\n") { "}" }
-    }
-
     setToken("processor_uuid", generateUUID())
     setToken("controller_uuid", generateUUID())
+    setToken("debug_processor_uuid", generateUUID())
+    setToken("debug_controller_uuid", generateUUID())
     setToken("year", Date().getFullYear().toString())
     setToken("jamba_root_dir", "../../pongasoft/jamba")
     setToken("local_jamba", "#")

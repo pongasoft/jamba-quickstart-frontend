@@ -244,7 +244,7 @@ val entries =
         OptionEntry(
             name = "company_email",
             label = "Company Email",
-            desc = "An email address for the company (your email of not a company)"
+            desc = "An email address for the company (your email if not a company)"
         ),
         OptionEntry(
             name = "namespace",

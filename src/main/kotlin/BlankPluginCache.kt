@@ -139,6 +139,7 @@ class BlankPluginCache(val jambaGitHash: String, val files: Array<out BlankPlugi
     files.forEach { file ->
       val processedName = file.relativePath.replace("__Plugin__", pluginName)
       var processedContent = file.content
+      processedContent = processedContent.replace("[--", "[-") // escape sequence in python script
       for((tokenName, tokenValue) in t) {
         processedContent = processedContent.replace(tokenName, tokenValue)
       }

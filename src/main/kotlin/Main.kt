@@ -192,6 +192,7 @@ data class OptionEntry(
     val name: String,
     val label: String? = null,
     val type: InputType = InputType.text,
+    val checked: Boolean? = null,
     val defaultValue: String? = null,
     val desc: String? = null,
     val maxLength: Int? = null,
@@ -212,6 +213,7 @@ val entries =
             name = "enable_vst2",
             type = InputType.checkBox,
             label = "Enable VST2",
+            checked = false,
             desc = "Makes the plugin compatible with both VST2 and VST3"
         ),
         OptionEntry(
@@ -260,6 +262,7 @@ val entries =
             name = "download_vst_sdk",
             type = InputType.checkBox,
             label = "Download VST SDK",
+            checked = false,
             desc = "Automatically downloads the VST SDK required to use Jamba"
         ),
         OptionEntry(
@@ -282,8 +285,9 @@ fun TBODY.optionEntry(entry: OptionEntry): Unit = tr {
 
       entry.maxLength?.let { maxLength = entry.maxLength.toString() }
 
-      if (entry.type == InputType.checkBox)
-        checked = true
+      if (entry.type == InputType.checkBox) {
+          checked = entry.checked ?: true
+      }
 
       if(entry.defaultValue != null) {
         value = entry.defaultValue

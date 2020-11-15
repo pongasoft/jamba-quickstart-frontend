@@ -16,11 +16,16 @@ import org.w3c.workers.*
 import org.w3c.xhr.*
 
 external interface `T$0` {
-    @nativeGetter
-    operator fun get(key: String): JSZipObject?
-    @nativeSetter
-    operator fun set(key: String, value: JSZipObject)
 }
+
+@Suppress("NOTHING_TO_INLINE")
+inline operator fun `T$0`.get(key: String): JSZipObject? = asDynamic()[key]
+
+@Suppress("NOTHING_TO_INLINE")
+inline operator fun `T$0`.set(key: String, value: JSZipObject) {
+    asDynamic()[key] = value
+}
+
 //@JsModule("jszip")
 external interface JSZip {
     var files: `T$0`
@@ -37,14 +42,13 @@ external interface JSZip {
     fun load()
     fun loadAsync(data: Any, options: JSZipLoadOptions? = definedExternally /* null */): Promise<JSZip>
     companion object {
-        @nativeInvoke
-        operator fun invoke(): JSZip
-        @nativeInvoke
-        operator fun invoke(data: Any, options: JSZipLoadOptions? = definedExternally /* null */): JSZip
         var prototype: JSZip = definedExternally
         var support: JSZipSupport = definedExternally
     }
 }
+
+inline operator fun JSZip.Companion.invoke(): JSZip = js("JSZip()")
+
 external interface JSZipObject {
     var name: String
     var dir: Boolean

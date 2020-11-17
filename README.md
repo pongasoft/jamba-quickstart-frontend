@@ -5,7 +5,7 @@ This project is the code that drives the [Jamba quickstart](https://jamba.dev/qu
 
 This project is a pure javascript frontend implementation of the [jamba-quickstart-server](https://github.com/ypujante/jamba-quickstart-server) project.
 
-This project was built with kotlin 1.3.41 and demonstrate a few interesting features
+This project was built with kotlin 1.4.10 and demonstrate a few interesting features
 
 List of demonstrated features (kotlin)
 --------------------------------------
@@ -21,25 +21,28 @@ List of demonstrated features (kotlin)
 * use of `Promise`
 * downloading a file via javascript
 
-List of demonstrated features (build)
--------------------------------------
-
-* Use of Docker to create a small container serving files both from the source code (static files) and from the build directory (generated from compilation) => allows to iterate over static code without even having to recompile for example.
- 
-
 Build
 =====
 
-In development mode, simply run this command (start a web server after compilation at [http://localhost:8080/index.html](http://localhost:8080/index.html))
+In development mode, simply run this command which automatically loads the web page in a browser window and listens to changes (in the IDEA you can select `BrowserDevelopmentRun` configuration):
 
 ```
-./gradlew webserver-start
+./gradlew browserDevelopmentRun
 ```
 
-For production release
+For the production ready artifacts (under `build/distributions`)
 ```
-./gradlew -Prelease=true build
+./gradlew build
 ```
+
+Note that the `deploy` task is being used locally to deploy only the necessary artifacts to their final destination prior to building the jamba.dev website (which uses Hugo). It can serve as an example to do something similar in your environment.
+
+Release Notes
+=============
+
+#### 2020-11-17 - 1.2.0
+* Migrated to Kotlin/js 1.4.10 
+* Added preview files section and no longer automatically download the zip file
 
 License
 =======

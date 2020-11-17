@@ -10,9 +10,41 @@
     <meta name="X-jamba-download-link" content="Plugin Download link">
 </head>
 <body>
-<h1>Jamba <span id="jamba_version"></span> - Quick Start</h1>
-<div id="jamba-form">Initializing... (if this message does not disappear, check that javascript is enabled)</div>
-<div id="notification"></div>
+
+<section id="jamba-plugin-info">
+    <h3>Jamba <span id="jamba_version"></span> - Quick Start</h3>
+    <div id="jamba-quickstart-form">Initializing... (if this message does not disappear, check that javascript is
+        enabled)
+    </div>
+
+    <pre id="notification"></pre>
+</section>
+
+<div id="jamba-plugin" class="hidden">
+    <section id="jamba-plugin-preview-files">
+        <h3 id="step2">Step 2. Preview the files</h3>
+        <table>
+            <tbody>
+            <tr>
+                <td class="links">
+                    <div id="jamba-plugin-preview-files-links"></div>
+                </td>
+                <td class="content">
+                    <div id="jamba-plugin-preview-files-content"></div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="jamba-plugin-download">
+        <h3>Step 3. Download the plugin</h3>
+        Download the zip file
+        <div id="jamba-plugin-download-link"></div>
+    </section>
+
+</div>
+
 <script type="text/javascript" src="js/jszip.min.js"></script>
 <script type="text/javascript" src="jamba-quickstart-frontend.js"></script>
 

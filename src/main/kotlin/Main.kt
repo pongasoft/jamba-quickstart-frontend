@@ -3,20 +3,15 @@ import kotlinx.browser.window
 import kotlinx.dom.createElement
 import kotlinx.html.*
 import kotlinx.html.dom.create
-import org.w3c.dom.*
-import org.w3c.dom.events.Event
+import kotlinx.html.js.onClickFunction
+import org.w3c.dom.Element
+import org.w3c.dom.HTMLAnchorElement
+import org.w3c.dom.HTMLElement
+import org.w3c.dom.HTMLInputElement
 import org.w3c.dom.url.URL
 import org.w3c.dom.url.URLSearchParams
-import org.w3c.fetch.RequestInit
-import org.w3c.fetch.Response
 import org.w3c.files.Blob
 import kotlin.js.Promise
-
-/**
- * Finds (may not exist) the content of a meta entry whose name is provided */
-fun Document.findMetaContent(name: String): String? {
-    return querySelector("meta[name='$name']")?.getAttribute("content")
-}
 
 /**
  * Encapsulates a notification section where messages can be added */
@@ -30,6 +25,8 @@ class Notification(id: String? = null) {
                 div.classList.add(status)
             div.appendChild(document.createTextNode(message))
             element.appendChild(div)
+            // this makes sure that the last entry is visible if the notification has a scroll bar
+            element.scrollTop = element.scrollHeight.toDouble()
         } else {
             println("[${status ?: "info"}] $message")
         }
@@ -42,6 +39,8 @@ class Notification(id: String? = null) {
                 div.classList.add(status)
             div.appendChild(elt)
             element.appendChild(div)
+            // this makes sure that the last entry is visible if the notification has a scroll bar
+            element.scrollTop = element.scrollHeight.toDouble()
         }
     }
 
@@ -60,36 +59,6 @@ class Notification(id: String? = null) {
     fun error(message: String) {
         addTextLine(message, "error")
     }
-}
-
-/**
- * Used in promise rejection when detecting error (status code != 200)
- */
-open class HTTPException(val status: Short, val errorMessage: String) : Exception("[$status] $errorMessage") {
-    constructor(response: Response) : this(response.status, response.statusText)
-}
-
-/**
- * Adding a listener where the element is passed back in the closure as "this" for convenience */
-fun HTMLInputElement.addListener(type: String, block: HTMLInputElement.(event: Event) -> Unit) {
-    addEventListener(type, { event -> block(event) })
-}
-
-/**
- * Shortcut for change event */
-fun HTMLInputElement.onChange(block: HTMLInputElement.(event: Event) -> Unit) {
-    addListener("change", block)
-}
-
-/**
- * Add a __computedValue field to the element to store the value that was computed so that when it gets
- * recomputed it can be updated but ONLY in the event the user has not manually modified it
- */
-fun HTMLInputElement.setComputedValue(computedValue: String) {
-    val dynElt: dynamic = this
-    if (value.isEmpty() || value == dynElt.__computedValue)
-        value = computedValue
-    dynElt.__computedValue = computedValue
 }
 
 /**
@@ -137,52 +106,6 @@ fun generateDownloadAnchor(filename: String, blob: Blob): HTMLAnchorElement {
         target = "_blank"
         download = filename
     } as HTMLAnchorElement
-}
-
-/**
- * Forces flattening the promise because Kotlin doesn't do it automatically
- */
-inline fun <T> Promise<Promise<T>>.flatten(): Promise<T> {
-    return this.then { it }
-}
-
-/**
- * Fetches the URL and processes the response (only when successful) via [onFulfilled]. If not successful or
- * rejection, then an exception is thrown (should be handled via [Promise.catch])
- */
-fun <T> fetchURL(
-    url: String,
-    method: String = "GET",
-    onFulfilled: (Response) -> Promise<T>
-): Promise<T> {
-
-    return window.fetch(
-        url,
-        RequestInit(method = method)
-    )
-        .then(
-            onFulfilled = { response ->
-                if (response.ok && response.status == 200.toShort()) {
-                    onFulfilled(response)
-                } else {
-                    Promise.reject(HTTPException(response))
-                }
-            }
-        ).flatten()
-}
-
-/**
- * Fetches the url as json content. Note the use of `dynamic` since json is "free" form
- */
-fun fetchJson(url: String, method: String = "GET"): Promise<dynamic> {
-    return fetchURL(url, method) { it.json() }
-}
-
-/**
- * Fetches the url as a blob
- */
-fun fetchBlob(url: String, method: String = "GET"): Promise<Blob> {
-    return fetchURL(url, method) { it.blob() }
 }
 
 /**
@@ -324,13 +247,6 @@ fun createHTML(entries: Iterator<OptionEntry>, elementId: String? = null, classe
 typealias PJambaZip = Promise<Pair<String, Blob>>
 
 /**
- * Loads the zip file containing the template for the blank plugin (with replacement tokens)
- */
-fun loadJambaZip(version: String): PJambaZip {
-    return fetchBlob("assets/jamba-blank-plugin-$version.zip").then { blob -> Pair(version, blob) }
-}
-
-/**
  * Tries to determine the jamba version (from the query string, html meta tag)
  */
 fun findJambaVersion(): String? {
@@ -348,7 +264,7 @@ fun findJambaVersion(): String? {
  */
 fun init() {
 
-    val jambaFormID = document.findMetaContent("X-jamba-form-id") ?: "jamba-form"
+    val jambaFormID = document.findMetaContent("X-jamba-form-id") ?: "jamba-quickstart-form"
 
     document.getElementById(jambaFormID)
         ?.replaceWith(
@@ -361,6 +277,11 @@ fun init() {
 
     val elements = entries.associateBy({ it.name }) { entry ->
         document.getElementById(entry.name) as? HTMLInputElement
+    }
+
+    // sets the state of the submit button depending on whether all values have been filled out
+    fun maybeEnableSubmit() {
+        elements["submit"]?.disabled = elements.values.any { it?.value?.isEmpty() ?: false }
     }
 
     val notification = Notification("notification")
@@ -376,26 +297,74 @@ fun init() {
         return
     }
 
-    val jambaZip: PJambaZip by lazy { loadJambaZip(version) }
+    document.getElementById("jamba_version")?.textContent = "[$version]"
+
+    val jambaPluginMgrPromise: Promise<JambaPluginMgr> by lazy { JambaPluginMgr.load(version) }
 
     elements["submit"]?.addListener("click") {
         notification.info("Loading Jamba Blank Plugin...")
-        jambaZip
-            .then { (version, zip) ->
-                console.log("jambaZip.then / $version")
-                document.getElementById("jamba_version")?.textContent = "[$version]"
-                console.log("jambaZip.then.2 / $version")
-                buildCache(version, zip)
-            }
-            .then { cache ->
-                notification.info("Loaded Jamba Blank Plugin version ${cache.jambaGitHash} - ${cache.fileCount} files.")
-                cache.generatePlugin(form!!).then { (filename, blob) ->
-                    notification.info("Plugin [$filename] generated successfully.")
-                    val downloadAnchor = generateDownloadAnchor(filename, blob)
-                    document.findMetaContent("X-jamba-download-link")?.let {
-                        downloadAnchor.text = it
-                        notification.info(downloadAnchor)
+        jambaPluginMgrPromise
+            .then { mgr ->
+                notification.info("Loaded Jamba Blank Plugin version ${mgr.jambaGitHash} - ${mgr.fileCount} files.")
+
+                val plugin = mgr.createJambaPlugin(form!!)
+
+                val tree = mgr.generateFileTree(plugin)
+
+                // add links to preview all files included with the plugin
+                fun renderFilePreview(path: String) {
+                    // render the content
+                    tree[path]?.content?.let { content ->
+                        document.replaceElement("jamba-plugin-preview-files-content",
+                            document.create.div("highlight") {
+                                pre("chroma") {
+                                    code("language-text") {
+                                        attributes["data-lang"] = "text"
+                                        +content
+                                    }
+                                    span("copy-to-clipboard") {
+                                        attributes["title"] = "Copy to clipboard"
+                                    }
+                                }
+                            }
+                        )
                     }
+
+                    // regenerate the list of links
+                    document.replaceElement("jamba-plugin-preview-files-links",
+                        document.create.div {
+                            ul {
+                                tree.keys.sortedBy { it.toLowerCase() }.forEach { p ->
+                                    li(if(path == p) "active" else null) {
+                                        if(p != path) {
+                                            a {
+                                                onClickFunction = {
+                                                    renderFilePreview(p)
+                                                }
+                                                +p
+                                            }
+                                        } else {
+                                                +p
+                                        }
+                                    }
+
+                                }
+                            }
+                        }
+                    )
+                }
+
+                // render CMakeLists.txt
+                renderFilePreview(document.findMetaContent("X-jamba-default-preview-file") ?: "CMakeLists.txt")
+
+                // we reveal the rest of the page
+                document.show("jamba-plugin")
+
+                mgr.generatePlugin("${plugin.name}-src", tree).then { zip ->
+                    notification.info("Generated ${zip.filename}.")
+                    val downloadAnchor = generateDownloadAnchor(zip.filename, zip.content)
+                    downloadAnchor.text = zip.filename
+                    document.replaceElement("jamba-plugin-download-link", downloadAnchor)
                 }
             }
             // in case of error => report error and install different listener
@@ -411,7 +380,6 @@ fun init() {
         elements["namespace"]?.setComputedValue(computeNamespace(value, elements["company"]?.value))
         elements["project_name"]?.setComputedValue(computeProjectName(value, elements["company"]?.value))
         elements["filename"]?.setComputedValue(value)
-        elements["submit"]?.disabled = value.isEmpty()
     }
 
     // defines what happens when the company is entered/changed
@@ -420,6 +388,15 @@ fun init() {
         elements["project_name"]?.setComputedValue(computeProjectName(elements["name"]?.value, value))
         elements["company_url"]?.setComputedValue("https://www.$value.com")
         elements["company_email"]?.setComputedValue("support@$value.com")
+    }
+
+    // hide Step.2+ if the form is changed
+    elements.forEach { (name, elt) ->
+        if (name != "submit")
+            elt?.onChange {
+                document.hide("jamba-plugin")
+                maybeEnableSubmit()
+            }
     }
 }
 

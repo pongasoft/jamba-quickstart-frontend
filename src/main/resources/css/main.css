@@ -4,6 +4,10 @@ body {
     color: #00ff00;
 }
 
+.hidden {
+  display: none;
+}
+
 #notification {
     margin-top: 1em;
     width: 100%;
@@ -77,4 +81,18 @@ td.control input[type="button"]:active {
     color: #00ff00;
     border: solid 1px #00ff00;
     border-radius: 5px;
+}
+
+#jamba-plugin-preview-files-links .active {
+  color: white;
+  background-color: black;
+  padding: 2px;
+}
+
+#jamba-plugin-preview-files table td {
+  vertical-align: top;
+}
+
+#jamba-plugin-preview-files pre {
+  white-space: pre-wrap;
 }

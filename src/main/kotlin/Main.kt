@@ -151,6 +151,12 @@ val entries =
             desc = "Generates an (additional) Audio Unit compatible plugin"
         ),
         OptionEntry(
+            name = "macos_deployment_target",
+            label = "macOS Target",
+            defaultValue = "10.14",
+            desc = "The macOS deployment target (default to 10.14 / Mojave)"
+        ),
+        OptionEntry(
             name = "audio_unit_manufacturer_code",
             label = "Audio Unit Manufacturer",
             desc = "Must be 4 characters with (at least) one capital letter",

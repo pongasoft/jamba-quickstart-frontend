@@ -113,7 +113,7 @@ class JambaPluginMgr(
         setToken("debug_processor_uuid", generateUUID())
         setToken("debug_controller_uuid", generateUUID())
         setToken("year", Date().getFullYear().toString())
-        setToken("jamba_root_dir", "../../pongasoft/jamba")
+        setToken("jamba_root_dir", "\${CMAKE_CURRENT_LIST_DIR}/../../pongasoft/jamba")
         setToken("local_jamba", "#")
         setToken("remote_jamba", "")
         setToken(

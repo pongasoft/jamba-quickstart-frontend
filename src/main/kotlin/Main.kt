@@ -68,7 +68,8 @@ fun computeAudioUnitManufacturerCode(pluginName: String?): String {
     if (pluginName == null || pluginName.isEmpty())
         return ""
 
-    return pluginName.substring(0..3).padEnd(4, 'x').capitalize()
+    return pluginName.substring(0..3).padEnd(4, 'x')
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 }
 
 /**
@@ -246,11 +247,6 @@ fun createHTML(entries: Iterator<OptionEntry>, elementId: String? = null, classe
 
     return form
 }
-
-/**
- * Defining a type alias for convenience
- */
-typealias PJambaZip = Promise<Pair<String, Blob>>
 
 /**
  * Tries to determine the jamba version (from the query string, html meta tag)

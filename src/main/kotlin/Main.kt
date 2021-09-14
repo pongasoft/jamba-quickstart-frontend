@@ -305,7 +305,7 @@ fun init() {
 
     document.getElementById("jamba_version")?.textContent = "[$version]"
 
-    val jambaPluginMgrPromise: Promise<JambaPluginMgr> by lazy { JambaPluginMgr.load(version) }
+    val jambaPluginMgrPromise = JambaPluginMgr.load(version)
 
     elements["submit"]?.addListener("click") {
         notification.info("Loading Jamba Blank Plugin...")
@@ -317,48 +317,37 @@ fun init() {
 
                 val tree = mgr.generateFileTree(plugin)
 
-                // add links to preview all files included with the plugin
-                fun renderFilePreview(path: String) {
-                    // render the content
-                    tree[path]?.content?.let { content ->
-                        document.replaceElement("jamba-plugin-preview-files-content",
-                            document.create.div("highlight") {
-                                pre("chroma") {
-                                    code("language-text") {
-                                        attributes["data-lang"] = "text"
-                                        +content
-                                    }
-                                    span("copy-to-clipboard") {
-                                        attributes["title"] = "Copy to clipboard"
-                                    }
-                                }
-                            }
-                        )
-                    }
+               // add links to preview all files included with the RE
+               fun renderFilePreview(path: String) {
+                   // render the content
+                   tree[path]?.html?.invoke()?.let { content ->
+                       document.replaceElement("jamba-plugin-preview-files-content", content)
+                   }
 
-                    // regenerate the list of links
-                    document.replaceElement("jamba-plugin-preview-files-links",
-                        document.create.div {
-                            ul {
-                                tree.keys.sortedBy { it.toLowerCase() }.forEach { p ->
-                                    li(if(path == p) "active" else null) {
-                                        if(p != path) {
-                                            a {
-                                                onClickFunction = {
-                                                    renderFilePreview(p)
-                                                }
-                                                +p
-                                            }
-                                        } else {
-                                                +p
-                                        }
-                                    }
+                   // regenerate the list of links
+                   document.replaceElement("jamba-plugin-preview-files-links",
+                       document.create.div {
+                           ul {
+                               tree.keys.sortedBy { it.lowercase() }.forEach { p ->
+                                   li(if(path == p) "active" else null) {
+                                       if(p != path) {
+                                           a {
+                                               onClickFunction = {
+                                                   renderFilePreview(p)
+                                               }
+                                               +p
+                                           }
+                                       } else {
+                                               +p
+                                       }
+                                   }
 
-                                }
-                            }
-                        }
-                    )
-                }
+                               }
+                           }
+                       }
+                   )
+               }
+
 
                 // render CMakeLists.txt
                 renderFilePreview(document.findMetaContent("X-jamba-default-preview-file") ?: "CMakeLists.txt")

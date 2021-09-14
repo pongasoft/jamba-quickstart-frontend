@@ -167,3 +167,19 @@ fun fetchBlob(url: String, method: String = "GET"): Promise<Blob> {
   return fetchURL(url, method) { it.blob() }
 }
 
+/**
+ * Extension for Image.asyncLoad */
+fun Image.Companion.asyncLoad(src: String) : Promise<Image> {
+    val image = Image()
+    val promise = Promise<Image> { resolve, reject ->
+        image.addEventListener("error", {
+            console.log("Error loading image [$src]")
+            reject(Exception("Error loading image [$src]"))
+        })
+        image.addEventListener("load", {
+            resolve(image)
+        })
+    }
+    image.src = src
+    return promise
+}

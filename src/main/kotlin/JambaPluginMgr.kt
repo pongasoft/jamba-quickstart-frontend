@@ -1,10 +1,53 @@
+import org.w3c.dom.HTMLElement
 import org.w3c.dom.HTMLFormElement
 import org.w3c.files.Blob
 import org.w3c.xhr.FormData
 import kotlin.js.Date
 import kotlin.js.Promise
+import kotlinx.browser.document
+import kotlinx.dom.addClass
+import kotlinx.html.code
+import kotlinx.html.dom.create
+import kotlinx.html.js.div
+import kotlinx.html.pre
+import kotlinx.html.span
+import org.w3c.dom.HTMLImageElement
 
-class JambaPlugin(val name: String, val tokens: Map<String, String>)
+/**
+ * Defines content processing (token replacement) */
+interface ContentProcessor {
+    fun processText(text: String) : String
+    fun processPath(path: String) : String
+}
+
+class TokenBasedContentProcessor(tokens: Map<String, String>) : ContentProcessor
+{
+    private val textTokens = tokens.mapKeys { (k, _) -> "[-$k-]" }
+    private val pathTokens = tokens.mapKeys { (k, _) -> "__${k}__" }
+
+    // simply replace each token in the content
+    private fun processContent(content: String, tokens: Map<String, String>): String {
+        var processedContent = content
+        for((tokenName, tokenValue) in tokens) {
+          processedContent = processedContent.replace(tokenName, tokenValue)
+        }
+        return processedContent
+    }
+
+    override fun processText(text: String): String {
+        return processContent(text, textTokens)
+    }
+
+    override fun processPath(path: String): String {
+        return processContent(path, pathTokens)
+    }
+}
+
+class JambaPlugin(val name: String, tokens: Map<String, String>) {
+    private val contentProcessor = TokenBasedContentProcessor(tokens)
+
+    fun getContentProcessor() : ContentProcessor = contentProcessor
+}
 
 /**
  * The zip file that gets generated with the content of the blank plugin */
@@ -14,69 +57,47 @@ class JambaPluginZip(val filename: String, val content: Blob)
  * Maintains the information for each file in the zip archive. Will use permission and date to generate the
  * outcome archive.
  */
-class JambaPluginFile(val relativePath: String, val date: Date?, val unixPermissions: Int?, val content: String)
-
-class FileTreeEntry(val content: String, val file: JambaPluginFile)
+class FileTreeEntry(val html: () -> HTMLElement, val zip: Promise<Any>, val resource: StorageResource)
 
 /**
  * A file tree is a map indexed by the full path to the file (ex: `src/cpp/Plugin.h`) */
 typealias FileTree = Map<String, FileTreeEntry>
 
 /**
+ * Unique ID */
+class UniqueID(private val uuid: String) {
+    fun asSnapshotID() = uuid.uppercase()
+    fun asCString() = "0x${uuid.substring(0..7)}, 0x${uuid.substring(8..15)}, 0x${uuid.substring(16..23)}, 0x${uuid.substring(24..31)}"
+}
+
+/**
  * Caches the files in memory */
 class JambaPluginMgr(
     val jambaGitHash: String,
-    val files: Array<out JambaPluginFile>,
+    val storage: Storage,
     val UUIDGenerator: () -> String
 ) {
     companion object {
 
         /**
          * Main API to create [REMgr]. Loads the `plugin-<version>.zip` file hence it returns a promise.*/
-        fun load(version: String): Promise<JambaPluginMgr> =
-            fetchBlob("assets/jamba-blank-plugin-$version.zip").then { blob ->
-                // This code is taken from the gist https://gist.github.com/jed/982883
-                val UUIDv4: dynamic =
-                    js("function (a){return a?(a^crypto.getRandomValues(new Uint8Array(1))[0]%16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,UUIDv4)}")
+        fun load(version: String): Promise<JambaPluginMgr> {
+            val UUIDv4: dynamic =
+                js("function (a){return a?(a^crypto.getRandomValues(new Uint8Array(1))[0]%16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,UUIDv4)}")
 
-                val zip = JSZip()
-
-                zip.loadAsync(blob).then {
-
-                    val promises = mutableListOf<Promise<JambaPluginFile>>()
-
-                    zip.forEach { path, file ->
-                        val relativePath = path.substringAfter("blank-plugin/")
-                        if (!(relativePath.startsWith("__MACOSX") ||
-                                    relativePath.startsWith(".idea") ||
-                                    relativePath.endsWith(".DS_Store"))
-                        ) {
-                            val p = file.async("string").then { content ->
-                                JambaPluginFile(relativePath, file.date, file.unixPermissions, content.toString())
-                            }
-                            promises.add(p)
-                        }
-                    }
-
-                    Promise.all(promises.toTypedArray()).then { array ->
-                        JambaPluginMgr(version, array, UUIDv4)
-                    }
-                }.flatten()
-            }.flatten()
+            return Storage.load(version).then { JambaPluginMgr(version, it, UUIDv4) }
+        }
     }
 
     /**
      * Number of files that make the plugin
      */
-    val fileCount: Int get() = files.size
+    val fileCount: Int get() = storage.resources.size
 
     /**
      * Generate a UUID as a C notation
      */
-    fun generateUUID(): String {
-        val hex = UUIDGenerator().replace("-", "")
-        return "0x${hex.substring(0..7)}, 0x${hex.substring(8..15)}, 0x${hex.substring(16..23)}, 0x${hex.substring(24..31)}"
-    }
+    fun generateUUID() = UniqueID(UUIDGenerator().replace("-", ""))
 
     fun createJambaPlugin(form: HTMLFormElement): JambaPlugin {
         val data = FormData(form)
@@ -89,7 +110,7 @@ class JambaPluginMgr(
             if (s == null)
                 return false
 
-            val ts = s.toLowerCase()
+            val ts = s.lowercase()
 
             return !(ts == "false" || ts == "no" || ts == "off")
         }
@@ -106,12 +127,16 @@ class JambaPluginMgr(
         }
 
         val pluginName = setToken("name", "Plugin")
+        setToken("Plugin", pluginName)
         setToken("jamba_git_hash", jambaGitHash)
 
-        setToken("processor_uuid", generateUUID())
-        setToken("controller_uuid", generateUUID())
-        setToken("debug_processor_uuid", generateUUID())
-        setToken("debug_controller_uuid", generateUUID())
+        val processorUniqueID = generateUUID()
+
+        setToken("processor_uuid", processorUniqueID.asCString())
+        setToken("snapshot_uuid", processorUniqueID.asSnapshotID())
+        setToken("controller_uuid", generateUUID().asCString())
+        setToken("debug_processor_uuid", generateUUID().asCString())
+        setToken("debug_controller_uuid", generateUUID().asCString())
         setToken("year", Date().getFullYear().toString())
         setToken("jamba_root_dir", "\${CMAKE_CURRENT_LIST_DIR}/../../pongasoft/jamba")
         setToken("local_jamba", "#")
@@ -127,41 +152,86 @@ class JambaPluginMgr(
         setBooleanToken("enable_audio_unit")
         setBooleanToken("download_vst_sdk")
 
-        return JambaPlugin(name, newTokens.mapKeys { (k, _) -> "[-$k-]" })
+        return JambaPlugin(name, newTokens)
+    }
+
+    /**
+     * Generates the `<img>` element for the static image resource */
+    private fun generateStaticImgContent(imageResource: ImageResource) = with(document.createElement("img")) {
+        this as HTMLImageElement
+        src = imageResource.image.src
+        document.findMetaContent("X-re-quickstart-re-files-preview-classes")?.let { addClass(it) }
+        this
     }
 
     fun generateFileTree(plugin: JambaPlugin): FileTree {
-        return mapOf(*files.map { file ->
-            val processedName = file.relativePath.replace("__Plugin__", plugin.name)
-            var processedContent = file.content
-            processedContent = processedContent.replace("[--", "[-") // escape sequence in python script
-            for ((tokenName, tokenValue) in plugin.tokens) {
-                processedContent = processedContent.replace(tokenName, tokenValue)
-            }
-            Pair(processedName, FileTreeEntry(processedContent, file))
-        }.toTypedArray())
+
+        val contentProcessor = plugin.getContentProcessor()
+
+        val resources = storage.resources.map { resource ->
+            val path = contentProcessor.processPath(resource.path).removePrefix("blank-plugin/")
+            Pair(path,
+                FileTreeEntry(
+                    resource = resource,
+                    html = {
+                        when (resource) {
+                            is FileResource -> document.create.div("highlight") {
+                                pre("chroma") {
+                                    code("language-text") {
+                                        attributes["data-lang"] = "text"
+                                        +contentProcessor.processText(resource.content)
+                                    }
+                                    span("copy-to-clipboard") {
+                                        attributes["title"] = "Copy to clipboard"
+                                    }
+                                }
+                            }
+
+                            is ImageResource -> generateStaticImgContent(resource)
+                        }
+                    },
+                    zip = when(resource) {
+                        is FileResource -> Promise.resolve(contentProcessor.processText(resource.content))
+                        is ImageResource -> Promise.resolve(resource.blob)
+                    }
+                )
+            )
+        }
+        
+        return mapOf(*resources.toTypedArray())
     }
 
     fun generatePlugin(root: String, tree: FileTree): Promise<JambaPluginZip> {
 
         val zip = JSZip()
-
         val rootDir = zip.folder(root)
 
-        tree.forEach { (name, entry) ->
-            val fileOptions = object : JSZipFileOptions {}.apply {
-                date = entry.file.date
-                unixPermissions = entry.file.unixPermissions
+        // helper class to pass down the `then` chain
+        class ZipEntry(val name: String, val resource: StorageResource?, val content: Any)
+
+        return Promise.all(tree.map { (name, entry) ->
+            entry.zip.then { ZipEntry(name, entry.resource, it) }
+        }.toTypedArray()).then { array ->
+            // addresses issue https://github.com/Stuk/jszip/issues/369# with date being UTC
+            val now = Date().let { Date(it.getTime() - it.getTimezoneOffset() * 60000) }
+
+            array.forEach { entry ->
+                val fileOptions = object : JSZipFileOptions {}.apply {
+                  date = entry.resource?.date ?: now
+                  unixPermissions = entry.resource?.unixPermissions
+                }
+                rootDir.file(entry.name, entry.content, fileOptions)
             }
-            rootDir.file(name, entry.content, fileOptions)
-        }
+        }.then {
+            // generate the zip
+            val options = object : JSZipGeneratorOptions {}.apply {
+                type = "blob"
+                platform = "UNIX"
+            }
 
-        val options = object : JSZipGeneratorOptions {}.apply {
-            type = "blob"
-            platform = "UNIX"
-        }
-
-        return zip.generateAsync(options).then {
+            zip.generateAsync(options)
+        }.then {
+            // return as a pair
             JambaPluginZip("$root.zip", it as Blob)
         }
     }

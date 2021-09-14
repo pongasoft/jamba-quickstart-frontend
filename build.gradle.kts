@@ -1,10 +1,11 @@
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
 
 plugins {
-    kotlin("js") version "1.4.10"
+    kotlin("js") version "1.5.30"
 }
+
 group = "org.pongasoft"
-version = "1.2.0"
+version = "1.3.0"
 
 repositories {
     mavenCentral()

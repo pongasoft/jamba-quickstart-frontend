@@ -139,13 +139,6 @@ val entries =
             desc = "Name of the company (your name if not company)"
         ),
         OptionEntry(
-            name = "enable_vst2",
-            type = InputType.checkBox,
-            label = "Enable VST2",
-            checked = false,
-            desc = "Makes the plugin compatible with both VST2 and VST3"
-        ),
-        OptionEntry(
             name = "enable_audio_unit",
             type = InputType.checkBox,
             label = "Enable Audio Unit",

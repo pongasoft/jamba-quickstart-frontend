@@ -148,7 +148,6 @@ class JambaPluginMgr(
                 else -> "${company}_$pluginName"
             }
         )
-        setBooleanToken("enable_vst2")
         setBooleanToken("enable_audio_unit")
         setBooleanToken("download_vst_sdk")
 

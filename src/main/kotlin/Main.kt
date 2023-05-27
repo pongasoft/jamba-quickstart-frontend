@@ -244,15 +244,26 @@ fun createHTML(entries: Iterator<OptionEntry>, elementId: String? = null, classe
 /**
  * Tries to determine the jamba version (from the query string, html meta tag)
  */
-fun findJambaVersion(): String? {
-    // 1. try to locate the version number as a query string
-    val fromQueryStringVersion = URLSearchParams(window.location.search).get("version")
-    if (fromQueryStringVersion != null)
-        return fromQueryStringVersion
+fun findParameter(queryStringName: String, metaContentName: String): String? {
+    // 1. try to locate the parameter as a query string
+    val fromQueryString = URLSearchParams(window.location.search).get(queryStringName)
+    if (fromQueryString != null)
+        return fromQueryString
 
     // 2. from a meta tag in the html
-    return document.findMetaContent("X-jamba-latest-release")
+    return document.findMetaContent(metaContentName)
 }
+
+
+/**
+ * Tries to determine the jamba version (from the query string, html meta tag)
+ */
+fun findJambaVersion(): String? = findParameter("version", "X-jamba-latest-release")
+
+/**
+ * Tries to determine the download url hash version (from the query string, html meta tag)
+ */
+fun findJambaDownloadUrlHash(): String? = findParameter("jamba_download_url_hash", "X-jamba-latest-download-url-hash")
 
 /**
  * Main method called when the page loads.
@@ -294,7 +305,7 @@ fun init() {
 
     document.getElementById("jamba_version")?.textContent = "[$version]"
 
-    val jambaPluginMgrPromise = JambaPluginMgr.load(version)
+    val jambaPluginMgrPromise = JambaPluginMgr.load(version, findJambaDownloadUrlHash())
 
     elements["submit"]?.addListener("click") {
         notification.info("Loading Jamba Blank Plugin...")

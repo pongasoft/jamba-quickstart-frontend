@@ -74,6 +74,7 @@ class UniqueID(private val uuid: String) {
  * Caches the files in memory */
 class JambaPluginMgr(
     val jambaGitHash: String,
+    val jambaDownloadUrlHash: String?,
     val storage: Storage,
     val UUIDGenerator: () -> String
 ) {
@@ -81,11 +82,11 @@ class JambaPluginMgr(
 
         /**
          * Main API to create [REMgr]. Loads the `plugin-<version>.zip` file hence it returns a promise.*/
-        fun load(version: String): Promise<JambaPluginMgr> {
+        fun load(version: String, downloadUrlHash: String?): Promise<JambaPluginMgr> {
             val UUIDv4: dynamic =
                 js("function (a){return a?(a^crypto.getRandomValues(new Uint8Array(1))[0]%16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,UUIDv4)}")
 
-            return Storage.load(version).then { JambaPluginMgr(version, it, UUIDv4) }
+            return Storage.load(version).then { JambaPluginMgr(version, downloadUrlHash, it, UUIDv4) }
         }
     }
 
@@ -129,6 +130,7 @@ class JambaPluginMgr(
         val pluginName = setToken("name", "Plugin")
         setToken("Plugin", pluginName)
         setToken("jamba_git_hash", jambaGitHash)
+        setToken("jamba_download_url_hash", jambaDownloadUrlHash ?: "")
 
         val processorUniqueID = generateUUID()
 

@@ -37,13 +37,6 @@ For the production ready artifacts (under `build/distributions`)
 
 Note that the `deploy` task is being used locally to deploy only the necessary artifacts to their final destination prior to building the jamba.dev website (which uses Hugo). It can serve as an example to do something similar in your environment.
 
-Release Notes
-=============
-
-#### 2020-11-17 - 1.2.0
-* Migrated to Kotlin/js 1.4.10 
-* Added preview files section and no longer automatically download the zip file
-
 License
 =======
 

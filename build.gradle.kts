@@ -1,31 +1,29 @@
 import org.jetbrains.kotlin.gradle.targets.js.webpack.KotlinWebpack
 
 plugins {
-    kotlin("js") version "1.5.30"
+    kotlin("js") version "1.8.21"
 }
 
 group = "org.pongasoft"
-version = "1.4.1"
+version = "1.4.2"
 
 repositories {
     mavenCentral()
-    jcenter()
-    maven {
-        url = uri("https://dl.bintray.com/kotlin/kotlinx")
-    }
+    maven("https://maven.pkg.jetbrains.space/public/p/kotlinx-html/maven")
 }
+
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-html-js:0.7.2")
 }
+
 kotlin {
     js(IR) {
+        binaries.executable()
         browser {
-            binaries.executable()
-            webpackTask {
-                cssSupport.enabled = true
-            }
-            runTask {
-                cssSupport.enabled = true
+            commonWebpackConfig {
+                cssSupport {
+                    enabled.set(true)
+                }
             }
         }
     }

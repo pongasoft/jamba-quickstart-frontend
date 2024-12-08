@@ -83,9 +83,13 @@ class JambaPluginMgr(
         /**
          * Main API to create [REMgr]. Loads the `plugin-<version>.zip` file hence it returns a promise.*/
         fun load(version: String, downloadUrlHash: String?): Promise<JambaPluginMgr> {
-            val UUIDv4: dynamic =
-                js("function (a){return a?(a^crypto.getRandomValues(new Uint8Array(1))[0]%16>>a/4).toString(16):([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,UUIDv4)}")
-
+            val UUIDv4: dynamic = js("""
+                (function() {
+                  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {
+                    return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+                  });
+                })
+            """)
             return Storage.load(version).then { JambaPluginMgr(version, downloadUrlHash, it, UUIDv4) }
         }
     }

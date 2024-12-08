@@ -371,7 +371,6 @@ fun init() {
 
     // defines what happens when the plugin name is entered/changed
     elements["name"]?.onChange {
-        elements["audio_unit_manufacturer_code"]?.setComputedValue(computeAudioUnitManufacturerCode(value))
         elements["namespace"]?.setComputedValue(computeNamespace(value, elements["company"]?.value))
         elements["project_name"]?.setComputedValue(computeProjectName(value, elements["company"]?.value))
         elements["filename"]?.setComputedValue(value)
@@ -379,6 +378,7 @@ fun init() {
 
     // defines what happens when the company is entered/changed
     elements["company"]?.onChange {
+        elements["audio_unit_manufacturer_code"]?.setComputedValue(computeAudioUnitManufacturerCode(value))
         elements["namespace"]?.setComputedValue(computeNamespace(elements["name"]?.value, value))
         elements["project_name"]?.setComputedValue(computeProjectName(elements["name"]?.value, value))
         elements["company_url"]?.setComputedValue("https://www.$value.com")
